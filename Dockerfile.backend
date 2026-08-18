@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    gcc libpq-dev curl docker.io git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Application code
+COPY backend/ ./backend/
+COPY dbt_project/ ./dbt_project/
+
+# Pre-trained ML models (pkl files are now committed to git)
+# train_models.py runs at startup if they're missing
+COPY ml/ ./ml/
+
+EXPOSE 8000
+
+# startup.sh is inside backend/ — consistent path whether running via Docker build or docker-compose volume mount
+RUN chmod +x ./backend/startup.sh
+
+CMD ["./backend/startup.sh"]

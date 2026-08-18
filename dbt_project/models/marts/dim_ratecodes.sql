@@ -1,0 +1,1 @@
+SELECT DISTINCT rate_code FROM stg_nyc_taxi_trips LIMIT 100

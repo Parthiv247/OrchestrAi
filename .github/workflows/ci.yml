@@ -1,0 +1,126 @@
+name: OrchestrAI CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend: Python tests ────────────────────────────────────────────────────
+  backend-tests:
+    name: Backend — pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pytest
+        env:
+          POSTGRES_HOST: "localhost"
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: "orchestrai"
+          POSTGRES_USER: "admin"
+          POSTGRES_PASSWORD: "orchestrai_secret"
+          GROQ_API_KEY: "test-key-not-real"
+          ENCRYPTION_KEY: "dGVzdC1rZXktbm90LXJlYWwtMzItYnl0ZXMtbG9uZw=="
+          JWT_SECRET_KEY: "test-jwt-secret"
+          LOG_FORMAT: "pretty"
+        run: |
+          cd ..
+          python -m pytest backend/tests/ -v --tb=short 2>&1 | head -200
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: backend/.pytest_cache/
+
+  # ── Backend: Import sanity check ─────────────────────────────────────────────
+  backend-imports:
+    name: Backend — import sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install core deps only
+        run: |
+          pip install fastapi uvicorn python-dotenv pydantic pydantic-settings \
+                      python-jose passlib cryptography slowapi limits httpx psycopg2-binary \
+                      sqlalchemy alembic sqlparse
+
+      - name: Check no syntax errors in route files
+        run: |
+          for f in backend/api/routes/*.py; do
+            python -c "
+import ast, sys
+with open('$f') as fh:
+    src = fh.read()
+try:
+    ast.parse(src)
+    print('OK  $f')
+except SyntaxError as e:
+    print('ERR $f:', e)
+    sys.exit(1)
+"
+          done
+
+  # ── Frontend: TypeScript build ────────────────────────────────────────────────
+  frontend-build:
+    name: Frontend — Next.js build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Next.js build
+        env:
+          NEXT_PUBLIC_API_URL: "http://localhost:8000"
+        run: npm run build
+
+  # ── Docker: Compose syntax check ─────────────────────────────────────────────
+  docker-lint:
+    name: Docker Compose — syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet

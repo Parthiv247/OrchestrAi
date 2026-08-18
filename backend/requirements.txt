@@ -1,0 +1,65 @@
+# ─── FastAPI Core ─────────────────────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.9
+slowapi==0.1.9           # rate limiting middleware
+limits==3.13.0           # required by slowapi (in-memory + Redis backends)
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+pytest==8.2.2
+pytest-asyncio==0.23.7
+httpx==0.27.0            # already listed below — kept here for clarity (TestClient needs it)
+
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==42.0.5
+
+# ─── Config ───────────────────────────────────────────────────────────────────
+python-dotenv==1.0.0
+pydantic>=2.7.4,<3          # langchain-core 0.3.x requires >=2.7.4 (was pinned 2.7.0)
+pydantic-settings==2.2.1
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.30
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+duckdb==0.10.3
+alembic==1.13.1
+
+# ─── LangGraph / LLM (Groq via httpx; LangGraph for StateGraph) ───────────────
+langchain-core==0.3.60
+langchain-groq==0.3.2
+langgraph==0.4.8
+langgraph-checkpoint==2.1.2   # pin: 4.x calls Reviver(allowed_objects=) absent in langchain-core 0.3.60
+langsmith==0.3.45
+
+# ─── Vector Store + embeddings (Learning Agent RAG) ──────────────────────────
+chromadb==0.5.23
+sentence-transformers==2.7.0   # required by chromadb SentenceTransformerEmbeddingFunction
+tiktoken==0.7.0
+
+# ─── dbt (used via CLI subprocess by DbtModelingAgent) ───────────────────────
+dbt-core==1.8.0
+dbt-postgres==1.8.0
+
+# ─── ML (MonitoringAgent IsolationForest) ────────────────────────────────────
+scikit-learn==1.5.0
+pandas==2.2.2
+numpy==1.26.4
+joblib==1.4.2
+
+# ─── Sandbox / HTTP / SQL ─────────────────────────────────────────────────────
+docker==7.1.0
+httpx==0.27.0
+requests==2.32.2
+sqlparse==0.5.0            # QueryAgent + CostOptimizer SQL parsing (was missing)
+sqlglot==25.34.0
+
+# Real Snowflake destination loads (write_pandas -> PUT + COPY INTO).
+snowflake-connector-python[pandas]==3.12.3
+
+# NOTE: dropped from the backend image (verified unused by backend runtime —
+# imported only in airflow/dags, lazily, or as string constants):
+#   apache-airflow  -> backend talks to Airflow via REST
+#   openai, streamlit, plotly, pyvis, kafka-python  -> not imported anywhere

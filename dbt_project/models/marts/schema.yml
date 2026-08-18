@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: fct_trips
+    description: Trip-level fact table with calculated metrics (NYC Yellow Taxi)
+    columns:
+      - name: trip_id
+        description: Unique trip identifier
+        tests: [not_null, unique]
+      - name: pickup_date
+        tests: [not_null]
+      - name: total_amount
+        tests: [not_null]
+      - name: payment_method
+        tests:
+          - accepted_values:
+              values: ['Credit Card', 'Cash', 'No Charge', 'Dispute', 'Unknown']
+
+  - name: dim_customers
+    description: Customer dimension with lifetime value and segmentation
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+      - name: customer_segment
+        tests:
+          - accepted_values:
+              values: ['VIP', 'Regular', 'Occasional']
+      - name: total_revenue
+        tests: [not_null]
+
+  - name: fct_ecommerce_summary
+    description: Daily e-commerce revenue summary by category and city
+    columns:
+      - name: order_date
+        tests: [not_null]
+      - name: total_revenue
+        tests: [not_null]
+
+  - name: dim_taxi_zones
+    description: Taxi zone dimension with pickup/dropoff traffic statistics
+    columns:
+      - name: location_id
+        tests: [not_null, unique]
+      - name: zone_tier
+        tests:
+          - accepted_values:
+              values: ['Airport', 'High Traffic', 'Medium Traffic', 'Low Traffic']

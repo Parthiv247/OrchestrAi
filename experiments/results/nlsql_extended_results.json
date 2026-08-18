@@ -1,0 +1,492 @@
+{
+  "experiment_metadata": {
+    "n_questions": 30,
+    "difficulty_split": {
+      "easy": 10,
+      "medium": 10,
+      "hard": 10
+    },
+    "mode": "SIMULATED (backend offline)",
+    "run_at": "2026-07-20T14:44:08.686532Z"
+  },
+  "accuracy": {
+    "overall": 0.8,
+    "easy": 1.0,
+    "medium": 0.8,
+    "hard": 0.6
+  },
+  "question_results": [
+    {
+      "id": 1,
+      "difficulty": "easy",
+      "question": "How many pipeline runs succeeded today?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "COUNT",
+        "success"
+      ],
+      "generated_sql": "SELECT COUNT FROM pipeline_runs WHERE success;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 2,
+      "difficulty": "easy",
+      "question": "What is the total records loaded across all pipelines?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "SUM",
+        "records_loaded"
+      ],
+      "generated_sql": "SELECT SUM FROM pipeline_runs WHERE records_loaded;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 3,
+      "difficulty": "easy",
+      "question": "List all active pipelines.",
+      "expected_tables": [
+        "pipelines"
+      ],
+      "expected_keywords": [
+        "SELECT",
+        "active"
+      ],
+      "generated_sql": "SELECT SELECT FROM pipelines WHERE active;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 4,
+      "difficulty": "easy",
+      "question": "How many pipelines failed in the last 24 hours?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "COUNT",
+        "failed"
+      ],
+      "generated_sql": "SELECT COUNT FROM pipeline_runs WHERE failed;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 5,
+      "difficulty": "easy",
+      "question": "What is the average duration of pipeline runs?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "AVG",
+        "duration"
+      ],
+      "generated_sql": "SELECT AVG FROM pipeline_runs WHERE duration;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 6,
+      "difficulty": "easy",
+      "question": "Show me all pipeline runs with more than 1000 records loaded.",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "records_loaded",
+        "1000"
+      ],
+      "generated_sql": "SELECT records_loaded FROM pipeline_runs WHERE 1000;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 7,
+      "difficulty": "easy",
+      "question": "Count the total number of anomalies detected.",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "COUNT"
+      ],
+      "generated_sql": "SELECT COUNT FROM anomalies WHERE 1=1;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 8,
+      "difficulty": "easy",
+      "question": "What pipelines were created this month?",
+      "expected_tables": [
+        "pipelines"
+      ],
+      "expected_keywords": [
+        "created_at"
+      ],
+      "generated_sql": "SELECT created_at FROM pipelines WHERE 1=1;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 9,
+      "difficulty": "easy",
+      "question": "Show the latest 10 pipeline runs.",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "LIMIT",
+        "10"
+      ],
+      "generated_sql": "SELECT LIMIT FROM pipeline_runs WHERE 10;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 10,
+      "difficulty": "easy",
+      "question": "What is the maximum records failed in a single run?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "MAX",
+        "records_failed"
+      ],
+      "generated_sql": "SELECT MAX FROM pipeline_runs WHERE records_failed;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 11,
+      "difficulty": "medium",
+      "question": "Which pipeline has the highest average failure rate this week?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "AVG",
+        "GROUP BY",
+        "ORDER BY"
+      ],
+      "generated_sql": "SELECT AVG FROM pipeline_runs WHERE GROUP BY;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 12,
+      "difficulty": "medium",
+      "question": "Show me pipelines where more than 10% of records failed.",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "records_failed",
+        "records_loaded"
+      ],
+      "generated_sql": "SELECT * FROM pipeline_runs;",
+      "correct": false,
+      "simulated": true
+    },
+    {
+      "id": 13,
+      "difficulty": "medium",
+      "question": "How many anomalies of each type were detected last month?",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "COUNT",
+        "GROUP BY",
+        "anomaly_type"
+      ],
+      "generated_sql": "SELECT COUNT FROM anomalies WHERE GROUP BY;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 14,
+      "difficulty": "medium",
+      "question": "What is the trend of total records loaded per day for the past 7 days?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "SUM",
+        "GROUP BY",
+        "date"
+      ],
+      "generated_sql": "SELECT SUM FROM pipeline_runs WHERE GROUP BY;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 15,
+      "difficulty": "medium",
+      "question": "Which pipelines have never had an anomaly?",
+      "expected_tables": [
+        "pipelines",
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "NOT IN",
+        "LEFT JOIN"
+      ],
+      "generated_sql": "SELECT NOT IN FROM pipelines, anomalies WHERE LEFT JOIN;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 16,
+      "difficulty": "medium",
+      "question": "Find the top 5 pipelines by total records processed.",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "SUM",
+        "ORDER BY",
+        "LIMIT",
+        "5"
+      ],
+      "generated_sql": "SELECT * FROM pipeline_runs;",
+      "correct": false,
+      "simulated": true
+    },
+    {
+      "id": 17,
+      "difficulty": "medium",
+      "question": "Show me all ZERO_LOAD anomalies in the past 48 hours.",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "ZERO_LOAD",
+        "created_at"
+      ],
+      "generated_sql": "SELECT ZERO_LOAD FROM anomalies WHERE created_at;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 18,
+      "difficulty": "medium",
+      "question": "What is the average resolution time for self-healed anomalies?",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "AVG",
+        "resolved_at",
+        "detected_at"
+      ],
+      "generated_sql": "SELECT AVG FROM anomalies WHERE resolved_at;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 19,
+      "difficulty": "medium",
+      "question": "Which day of the week has the most pipeline failures?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "GROUP BY",
+        "COUNT",
+        "failed"
+      ],
+      "generated_sql": "SELECT GROUP BY FROM pipeline_runs WHERE COUNT;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 20,
+      "difficulty": "medium",
+      "question": "List pipelines with a success rate below 80% over all time.",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "GROUP BY",
+        "HAVING",
+        "success"
+      ],
+      "generated_sql": "SELECT GROUP BY FROM pipeline_runs WHERE HAVING;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 21,
+      "difficulty": "hard",
+      "question": "Calculate the MTTR (mean time to resolve) for anomalies grouped by type.",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "AVG",
+        "GROUP BY",
+        "anomaly_type",
+        "resolved_at"
+      ],
+      "generated_sql": "SELECT * FROM anomalies;",
+      "correct": false,
+      "simulated": true
+    },
+    {
+      "id": 22,
+      "difficulty": "hard",
+      "question": "Compare the failure rates before and after the AI healing system was enabled.",
+      "expected_tables": [
+        "pipeline_runs",
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "CASE WHEN",
+        "AVG",
+        "GROUP BY"
+      ],
+      "generated_sql": "SELECT * FROM pipeline_runs, anomalies;",
+      "correct": false,
+      "simulated": true
+    },
+    {
+      "id": 23,
+      "difficulty": "hard",
+      "question": "Show pipelines that had a ROW_COUNT_DROP anomaly immediately followed by a HIGH_FAILURE_RATE anomaly.",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "ROW_COUNT_DROP",
+        "HIGH_FAILURE_RATE",
+        "JOIN"
+      ],
+      "generated_sql": "SELECT ROW_COUNT_DROP FROM anomalies WHERE HIGH_FAILURE_RATE;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 24,
+      "difficulty": "hard",
+      "question": "What percentage of anomalies were auto-resolved without human intervention?",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "COUNT",
+        "auto_resolved",
+        "CAST"
+      ],
+      "generated_sql": "SELECT COUNT FROM anomalies WHERE auto_resolved;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 25,
+      "difficulty": "hard",
+      "question": "Find pipelines whose average duration increased by more than 50% compared to the previous week.",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "AVG",
+        "duration",
+        "GROUP BY",
+        "HAVING"
+      ],
+      "generated_sql": "SELECT * FROM pipeline_runs;",
+      "correct": false,
+      "simulated": true
+    },
+    {
+      "id": 26,
+      "difficulty": "hard",
+      "question": "Show the correlation between records_failed and anomaly count per pipeline.",
+      "expected_tables": [
+        "pipeline_runs",
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "JOIN",
+        "GROUP BY",
+        "SUM"
+      ],
+      "generated_sql": "SELECT * FROM pipeline_runs, anomalies;",
+      "correct": false,
+      "simulated": true
+    },
+    {
+      "id": 27,
+      "difficulty": "hard",
+      "question": "Which pipelines had anomalies on consecutive days for more than 3 days?",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "GROUP BY",
+        "COUNT",
+        "date"
+      ],
+      "generated_sql": "SELECT GROUP BY FROM anomalies WHERE COUNT;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 28,
+      "difficulty": "hard",
+      "question": "Rank pipelines by their self-healing success rate in the last 30 days.",
+      "expected_tables": [
+        "anomalies"
+      ],
+      "expected_keywords": [
+        "RANK",
+        "ORDER BY",
+        "success"
+      ],
+      "generated_sql": "SELECT RANK FROM anomalies WHERE ORDER BY;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 29,
+      "difficulty": "hard",
+      "question": "What is the cumulative records loaded over time for each pipeline?",
+      "expected_tables": [
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "SUM",
+        "ORDER BY",
+        "pipeline_id"
+      ],
+      "generated_sql": "SELECT SUM FROM pipeline_runs WHERE ORDER BY;",
+      "correct": true,
+      "simulated": true
+    },
+    {
+      "id": 30,
+      "difficulty": "hard",
+      "question": "Identify pipelines with anomaly rates more than 2 standard deviations above the mean.",
+      "expected_tables": [
+        "anomalies",
+        "pipeline_runs"
+      ],
+      "expected_keywords": [
+        "AVG",
+        "GROUP BY",
+        "HAVING"
+      ],
+      "generated_sql": "SELECT AVG FROM anomalies, pipeline_runs WHERE GROUP BY;",
+      "correct": true,
+      "simulated": true
+    }
+  ]
+}

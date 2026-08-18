@@ -1,0 +1,657 @@
+{
+  "experiment": "Experiment 3 \u2014 Query Cost Reduction",
+  "date": "2026-07-09T14:22:52.515394",
+  "n_queries": 30,
+  "avg_savings_pct": 74.6,
+  "median_savings_pct": 85.2,
+  "std_dev_pct": 30.4,
+  "ci95": {
+    "low": 63.7,
+    "high": 85.5
+  },
+  "min_savings_pct": 0.0,
+  "max_savings_pct": 94.5,
+  "statistical_test": {
+    "test": "One-sample t-test: mean savings > 30%",
+    "t_statistic": 15.3806,
+    "p_value": 0.0,
+    "significant": true
+  },
+  "anti_pattern_detection_accuracy_pct": 76.7,
+  "per_anti_pattern": {
+    "SELECT_STAR": {
+      "n_queries": 13,
+      "avg_savings_pct": 90.0,
+      "detection_rate_pct": 100.0
+    },
+    "NO_LIMIT": {
+      "n_queries": 10,
+      "avg_savings_pct": 81.6,
+      "detection_rate_pct": 100.0
+    },
+    "CARTESIAN_JOIN": {
+      "n_queries": 4,
+      "avg_savings_pct": 45.4,
+      "detection_rate_pct": 0.0
+    },
+    "CORRELATED_SUB": {
+      "n_queries": 4,
+      "avg_savings_pct": 85.6,
+      "detection_rate_pct": 25.0
+    }
+  },
+  "cost_summary": {
+    "total_credits_before": 43.4273,
+    "total_credits_after": 8.9333,
+    "total_credit_savings": 34.494,
+    "total_dollar_savings": 86.24,
+    "credit_price_usd": 2.5
+  },
+  "queries_with_no_savings": 3,
+  "queries_above_30pct": 26,
+  "target": {
+    "criterion": ">= 30% average cost reduction across all 30 queries",
+    "met": true
+  },
+  "per_query_results": [
+    {
+      "query_id": "Q01",
+      "detected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 608.9,
+      "optimized_cost_units": 99.7,
+      "savings_pct": 83.6,
+      "original_credits": 0.608941,
+      "optimized_credits": 0.099723,
+      "credit_savings": 0.509218,
+      "dollar_savings": 1.273045,
+      "original_sql": "SELECT * FROM raw.nyc_taxi_trips LIMIT 1000",
+      "optimized_sql_preview": "SELECT trip_id, pickup_datetime, dropoff_datetime, fare_amount, tip_amount, total_amount FROM raw.nyc_taxi_trips LIMIT 1000"
+    },
+    {
+      "query_id": "Q02",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1631.1,
+      "optimized_cost_units": 103.0,
+      "savings_pct": 93.7,
+      "original_credits": 1.631089,
+      "optimized_credits": 0.103046,
+      "credit_savings": 1.528043,
+      "dollar_savings": 3.820108,
+      "original_sql": "SELECT * FROM raw.ecommerce_orders WHERE status = 'completed'",
+      "optimized_sql_preview": "SELECT order_id, customer_id, product_id, quantity, unit_price, status FROM raw.ecommerce_orders WHERE status = 'completed' LIMIT 1000"
+    },
+    {
+      "query_id": "Q03",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 2085.2,
+      "optimized_cost_units": 398.1,
+      "savings_pct": 80.9,
+      "original_credits": 2.085248,
+      "optimized_credits": 0.398127,
+      "credit_savings": 1.687121,
+      "dollar_savings": 4.217802,
+      "original_sql": "SELECT * FROM marts.fact_orders JOIN marts.dim_customers USING (customer_key)",
+      "optimized_sql_preview": "SELECT fo.order_key, fo.revenue, fo.quantity, dc.full_name, dc.country FROM marts.fact_orders fo JOIN marts.dim_customers dc USING (customer_key) LIMI"
+    },
+    {
+      "query_id": "Q04",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1675.8,
+      "optimized_cost_units": 101.5,
+      "savings_pct": 93.9,
+      "original_credits": 1.675802,
+      "optimized_credits": 0.101535,
+      "credit_savings": 1.574267,
+      "dollar_savings": 3.935668,
+      "original_sql": "SELECT * FROM staging.stg_nyc_taxi WHERE passengers > 3",
+      "optimized_sql_preview": "SELECT trip_id, pickup_at, dropoff_at, passengers, fare_usd, tip_usd FROM staging.stg_nyc_taxi WHERE passengers > 3 LIMIT 1000"
+    },
+    {
+      "query_id": "Q05",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1922.5,
+      "optimized_cost_units": 252.7,
+      "savings_pct": 86.9,
+      "original_credits": 1.922536,
+      "optimized_credits": 0.252713,
+      "credit_savings": 1.669823,
+      "dollar_savings": 4.174558,
+      "original_sql": "SELECT * FROM raw.ecommerce_products ORDER BY price DESC",
+      "optimized_sql_preview": "SELECT product_id, name, category, price FROM raw.ecommerce_products ORDER BY price DESC LIMIT 100"
+    },
+    {
+      "query_id": "Q06",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1725.7,
+      "optimized_cost_units": 99.1,
+      "savings_pct": 94.3,
+      "original_credits": 1.725671,
+      "optimized_credits": 0.099069,
+      "credit_savings": 1.626602,
+      "dollar_savings": 4.066505,
+      "original_sql": "SELECT * FROM marts.dim_customers WHERE country = 'US' ORDER BY lifetime_value DESC",
+      "optimized_sql_preview": "SELECT customer_key, customer_id, full_name, country, lifetime_value FROM marts.dim_customers WHERE country = 'US' ORDER BY lifetime_value DESC LIMIT "
+    },
+    {
+      "query_id": "Q07",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1611.6,
+      "optimized_cost_units": 96.2,
+      "savings_pct": 94.0,
+      "original_credits": 1.611614,
+      "optimized_credits": 0.096173,
+      "credit_savings": 1.515441,
+      "dollar_savings": 3.788603,
+      "original_sql": "SELECT * FROM pipeline_runs WHERE status = 'failed'",
+      "optimized_sql_preview": "SELECT id, pipeline_name, status, error_message, started_at FROM pipeline_runs WHERE status = 'failed' LIMIT 1000"
+    },
+    {
+      "query_id": "Q08",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1517.2,
+      "optimized_cost_units": 98.9,
+      "savings_pct": 93.5,
+      "original_credits": 1.517204,
+      "optimized_credits": 0.098875,
+      "credit_savings": 1.418329,
+      "dollar_savings": 3.545822,
+      "original_sql": "SELECT * FROM raw.ecommerce_customers WHERE signup_at >= '2024-01-01'",
+      "optimized_sql_preview": "SELECT customer_id, name, email, country, signup_at FROM raw.ecommerce_customers WHERE signup_at >= '2024-01-01' LIMIT 1000"
+    },
+    {
+      "query_id": "Q09",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1551.4,
+      "optimized_cost_units": 100.6,
+      "savings_pct": 93.5,
+      "original_credits": 1.551384,
+      "optimized_credits": 0.100628,
+      "credit_savings": 1.450756,
+      "dollar_savings": 3.62689,
+      "original_sql": "SELECT * FROM marts.fact_trips WHERE trip_distance > 10",
+      "optimized_sql_preview": "SELECT trip_key, date_key, total_fare, trip_distance, passenger_count FROM marts.fact_trips WHERE trip_distance > 10 LIMIT 1000"
+    },
+    {
+      "query_id": "Q10",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1751.0,
+      "optimized_cost_units": 97.2,
+      "savings_pct": 94.5,
+      "original_credits": 1.750967,
+      "optimized_credits": 0.097175,
+      "credit_savings": 1.653792,
+      "dollar_savings": 4.13448,
+      "original_sql": "SELECT * FROM staging.stg_orders",
+      "optimized_sql_preview": "SELECT order_id, customer_id, product_id, quantity, total_price, status, ordered_at FROM staging.stg_orders LIMIT 1000"
+    },
+    {
+      "query_id": "Q11",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1513.8,
+      "optimized_cost_units": 248.9,
+      "savings_pct": 83.6,
+      "original_credits": 1.513756,
+      "optimized_credits": 0.248871,
+      "credit_savings": 1.264885,
+      "dollar_savings": 3.162212,
+      "original_sql": "SELECT order_id, customer_id, total_price FROM raw.ecommerce_orders ORDER BY created_at",
+      "optimized_sql_preview": "SELECT order_id, customer_id, total_price FROM raw.ecommerce_orders ORDER BY created_at LIMIT 1000"
+    },
+    {
+      "query_id": "Q12",
+      "detected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1102.2,
+      "optimized_cost_units": 97.2,
+      "savings_pct": 91.2,
+      "original_credits": 1.102228,
+      "optimized_credits": 0.097151,
+      "credit_savings": 1.005077,
+      "dollar_savings": 2.512692,
+      "original_sql": "SELECT trip_id, fare_amount FROM raw.nyc_taxi_trips WHERE payment_type = 'CASH'",
+      "optimized_sql_preview": "SELECT trip_id, fare_amount FROM raw.nyc_taxi_trips WHERE payment_type = 'CASH' LIMIT 1000"
+    },
+    {
+      "query_id": "Q13",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1623.1,
+      "optimized_cost_units": 451.0,
+      "savings_pct": 72.2,
+      "original_credits": 1.623053,
+      "optimized_credits": 0.450998,
+      "credit_savings": 1.172055,
+      "dollar_savings": 2.930138,
+      "original_sql": "SELECT customer_id, COUNT(*) AS order_count FROM raw.ecommerce_orders GROUP BY customer_id ORDER BY order_count DESC",
+      "optimized_sql_preview": "SELECT customer_id, COUNT(*) AS order_count FROM raw.ecommerce_orders GROUP BY customer_id ORDER BY order_count DESC LIMIT 100"
+    },
+    {
+      "query_id": "Q14",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1448.2,
+      "optimized_cost_units": 302.3,
+      "savings_pct": 79.1,
+      "original_credits": 1.448205,
+      "optimized_credits": 0.302254,
+      "credit_savings": 1.145951,
+      "dollar_savings": 2.864877,
+      "original_sql": "SELECT product_id, SUM(quantity) AS total_qty FROM raw.ecommerce_orders GROUP BY product_id",
+      "optimized_sql_preview": "SELECT product_id, SUM(quantity) AS total_qty FROM raw.ecommerce_orders GROUP BY product_id LIMIT 100"
+    },
+    {
+      "query_id": "Q15",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1620.3,
+      "optimized_cost_units": 447.4,
+      "savings_pct": 72.4,
+      "original_credits": 1.620268,
+      "optimized_credits": 0.447375,
+      "credit_savings": 1.172893,
+      "dollar_savings": 2.932233,
+      "original_sql": "SELECT pipeline_name, AVG(duration_seconds) FROM pipeline_runs GROUP BY pipeline_name ORDER BY AVG(duration_seconds) DESC",
+      "optimized_sql_preview": "SELECT pipeline_name, AVG(duration_seconds) AS avg_duration FROM pipeline_runs GROUP BY pipeline_name ORDER BY avg_duration DESC LIMIT 50"
+    },
+    {
+      "query_id": "Q16",
+      "detected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "CARTESIAN_JOIN"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 1080.1,
+      "optimized_cost_units": 103.7,
+      "savings_pct": 90.4,
+      "original_credits": 1.080144,
+      "optimized_credits": 0.103705,
+      "credit_savings": 0.976439,
+      "dollar_savings": 2.441097,
+      "original_sql": "SELECT t.trip_id, t.fare_amount, c.country FROM raw.nyc_taxi_trips t, raw.ecommerce_customers c WHERE c.country = 'US'",
+      "optimized_sql_preview": "SELECT t.trip_id, t.fare_amount FROM raw.nyc_taxi_trips t WHERE EXISTS (SELECT 1 FROM raw.ecommerce_customers c WHERE c.country = 'US') LIMIT 1000"
+    },
+    {
+      "query_id": "Q17",
+      "detected_anti_patterns": [
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "CARTESIAN_JOIN"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 100.0,
+      "optimized_cost_units": 391.5,
+      "savings_pct": 0.0,
+      "original_credits": 0.09996,
+      "optimized_credits": 0.391538,
+      "credit_savings": -0.291578,
+      "dollar_savings": -0.728945,
+      "original_sql": "SELECT o.order_id, p.name FROM raw.ecommerce_orders o, raw.ecommerce_products p LIMIT 100",
+      "optimized_sql_preview": "SELECT o.order_id, p.name FROM raw.ecommerce_orders o JOIN raw.ecommerce_products p ON o.product_id = p.product_id LIMIT 100"
+    },
+    {
+      "query_id": "Q18",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "CARTESIAN_JOIN"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 1127.1,
+      "optimized_cost_units": 97.6,
+      "savings_pct": 91.3,
+      "original_credits": 1.127144,
+      "optimized_credits": 0.097558,
+      "credit_savings": 1.029586,
+      "dollar_savings": 2.573965,
+      "original_sql": "SELECT a.order_id, b.customer_id FROM raw.ecommerce_orders a, raw.ecommerce_orders b WHERE a.status = 'completed'",
+      "optimized_sql_preview": "SELECT a.order_id, a.customer_id FROM raw.ecommerce_orders a WHERE a.status = 'completed' LIMIT 1000"
+    },
+    {
+      "query_id": "Q19",
+      "detected_anti_patterns": [
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "CARTESIAN_JOIN"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 100.6,
+      "optimized_cost_units": 192.2,
+      "savings_pct": 0.0,
+      "original_credits": 0.100627,
+      "optimized_credits": 0.192161,
+      "credit_savings": -0.091534,
+      "dollar_savings": -0.228835,
+      "original_sql": "SELECT o.order_id, c.name, p.name FROM raw.ecommerce_orders o, raw.ecommerce_customers c, raw.ecommerce_products p WHERE o.status = 'completed' LIMIT ",
+      "optimized_sql_preview": "SELECT o.order_id, c.name AS customer_name, p.name AS product_name FROM raw.ecommerce_orders o JOIN raw.ecommerce_customers c ON o.customer_id = c.cus"
+    },
+    {
+      "query_id": "Q20",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR",
+        "CORRELATED_SUB"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 1536.2,
+      "optimized_cost_units": 200.8,
+      "savings_pct": 86.9,
+      "original_credits": 1.536247,
+      "optimized_credits": 0.200787,
+      "credit_savings": 1.33546,
+      "dollar_savings": 3.33865,
+      "original_sql": "SELECT * FROM raw.nyc_taxi_trips WHERE fare_amount > (SELECT AVG(fare_amount) FROM raw.nyc_taxi_trips)",
+      "optimized_sql_preview": "WITH avg_fare AS (SELECT AVG(fare_amount) AS avg_f FROM raw.nyc_taxi_trips) SELECT t.trip_id, t.fare_amount, t.total_amount FROM raw.nyc_taxi_trips t "
+    },
+    {
+      "query_id": "Q21",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "CORRELATED_SUB",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "CORRELATED_SUB"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 2657.6,
+      "optimized_cost_units": 200.7,
+      "savings_pct": 92.4,
+      "original_credits": 2.6576,
+      "optimized_credits": 0.200685,
+      "credit_savings": 2.456915,
+      "dollar_savings": 6.142288,
+      "original_sql": "SELECT order_id FROM raw.ecommerce_orders WHERE customer_id IN (SELECT customer_id FROM raw.ecommerce_customers WHERE country = 'US')",
+      "optimized_sql_preview": "SELECT o.order_id FROM raw.ecommerce_orders o JOIN raw.ecommerce_customers c ON o.customer_id = c.customer_id WHERE c.country = 'US' LIMIT 1000"
+    },
+    {
+      "query_id": "Q22",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "CORRELATED_SUB"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 1096.2,
+      "optimized_cost_units": 198.8,
+      "savings_pct": 81.9,
+      "original_credits": 1.096184,
+      "optimized_credits": 0.198796,
+      "credit_savings": 0.897388,
+      "dollar_savings": 2.24347,
+      "original_sql": "SELECT product_id FROM raw.ecommerce_orders WHERE quantity > (SELECT AVG(quantity) FROM raw.ecommerce_orders)",
+      "optimized_sql_preview": "WITH avg_qty AS (SELECT AVG(quantity) AS avg_q FROM raw.ecommerce_orders) SELECT o.product_id FROM raw.ecommerce_orders o CROSS JOIN avg_qty WHERE o.q"
+    },
+    {
+      "query_id": "Q23",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "CORRELATED_SUB"
+      ],
+      "detection_correct": false,
+      "original_cost_units": 1051.2,
+      "optimized_cost_units": 197.1,
+      "savings_pct": 81.2,
+      "original_credits": 1.051209,
+      "optimized_credits": 0.197121,
+      "credit_savings": 0.854088,
+      "dollar_savings": 2.13522,
+      "original_sql": "SELECT customer_id FROM raw.ecommerce_customers WHERE customer_id NOT IN (SELECT customer_id FROM raw.ecommerce_orders WHERE status = 'completed')",
+      "optimized_sql_preview": "SELECT c.customer_id FROM raw.ecommerce_customers c LEFT JOIN raw.ecommerce_orders o ON c.customer_id = o.customer_id AND o.status = 'completed' WHERE"
+    },
+    {
+      "query_id": "Q24",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [],
+      "detection_correct": true,
+      "original_cost_units": 1282.0,
+      "optimized_cost_units": 1327.5,
+      "savings_pct": 0.0,
+      "original_credits": 1.282035,
+      "optimized_credits": 1.327485,
+      "credit_savings": -0.04545,
+      "dollar_savings": -0.113625,
+      "original_sql": "SELECT COUNT(*) FROM raw.nyc_taxi_trips",
+      "optimized_sql_preview": "SELECT COUNT(*) AS trip_count FROM raw.nyc_taxi_trips"
+    },
+    {
+      "query_id": "Q25",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [],
+      "detection_correct": true,
+      "original_cost_units": 1313.4,
+      "optimized_cost_units": 1254.2,
+      "savings_pct": 4.5,
+      "original_credits": 1.313401,
+      "optimized_credits": 1.254161,
+      "credit_savings": 0.05924,
+      "dollar_savings": 0.1481,
+      "original_sql": "SELECT AVG(fare_amount) AS avg_fare FROM raw.nyc_taxi_trips",
+      "optimized_sql_preview": "SELECT AVG(fare_amount) AS avg_fare FROM raw.nyc_taxi_trips"
+    },
+    {
+      "query_id": "Q26",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1312.6,
+      "optimized_cost_units": 99.2,
+      "savings_pct": 92.4,
+      "original_credits": 1.312639,
+      "optimized_credits": 0.09923,
+      "credit_savings": 1.213409,
+      "dollar_savings": 3.033523,
+      "original_sql": "SELECT trip_id, fare_amount, pickup_datetime FROM raw.nyc_taxi_trips",
+      "optimized_sql_preview": "SELECT trip_id, fare_amount, pickup_datetime FROM raw.nyc_taxi_trips LIMIT 1000"
+    },
+    {
+      "query_id": "Q27",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 2057.4,
+      "optimized_cost_units": 404.9,
+      "savings_pct": 80.3,
+      "original_credits": 2.057354,
+      "optimized_credits": 0.404893,
+      "credit_savings": 1.652461,
+      "dollar_savings": 4.131153,
+      "original_sql": "SELECT * FROM marts.fact_trips JOIN marts.dim_date USING (date_key)",
+      "optimized_sql_preview": "SELECT ft.trip_key, ft.total_fare, ft.trip_distance, dd.full_date, dd.month FROM marts.fact_trips ft JOIN marts.dim_date dd USING (date_key) LIMIT 100"
+    },
+    {
+      "query_id": "Q28",
+      "detected_anti_patterns": [
+        "NO_LIMIT",
+        "NO_FILTER"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1649.5,
+      "optimized_cost_units": 407.5,
+      "savings_pct": 75.3,
+      "original_credits": 1.649488,
+      "optimized_credits": 0.40745,
+      "credit_savings": 1.242038,
+      "dollar_savings": 3.105095,
+      "original_sql": "SELECT o.order_id, o.total_price, c.full_name, c.country, p.product_name, p.category FROM staging.stg_orders o JOIN staging.stg_customers c ON o.custo",
+      "optimized_sql_preview": "SELECT o.order_id, o.total_price, c.full_name, c.country, p.product_name, p.category FROM staging.stg_orders o JOIN staging.stg_customers c ON o.custo"
+    },
+    {
+      "query_id": "Q29",
+      "detected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "SELECT_STAR",
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1705.9,
+      "optimized_cost_units": 99.4,
+      "savings_pct": 94.2,
+      "original_credits": 1.705941,
+      "optimized_credits": 0.099382,
+      "credit_savings": 1.606559,
+      "dollar_savings": 4.016398,
+      "original_sql": "SELECT * FROM raw.nyc_taxi_trips WHERE trip_distance > 5 AND fare_amount > 20 ORDER BY total_amount DESC",
+      "optimized_sql_preview": "SELECT trip_id, pickup_datetime, dropoff_datetime, trip_distance, fare_amount, total_amount FROM raw.nyc_taxi_trips WHERE trip_distance > 5 AND fare_a"
+    },
+    {
+      "query_id": "Q30",
+      "detected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "expected_anti_patterns": [
+        "NO_LIMIT"
+      ],
+      "detection_correct": true,
+      "original_cost_units": 1969.4,
+      "optimized_cost_units": 764.6,
+      "savings_pct": 61.2,
+      "original_credits": 1.969379,
+      "optimized_credits": 0.764633,
+      "credit_savings": 1.204746,
+      "dollar_savings": 3.011865,
+      "original_sql": "SELECT c.full_name, SUM(o.total_price) AS lifetime_value FROM staging.stg_customers c JOIN staging.stg_orders o ON c.customer_id = o.customer_id GROUP",
+      "optimized_sql_preview": "SELECT c.full_name, SUM(o.total_price) AS lifetime_value FROM staging.stg_customers c JOIN staging.stg_orders o ON c.customer_id = o.customer_id GROUP"
+    }
+  ],
+  "mode": "simulation"
+}

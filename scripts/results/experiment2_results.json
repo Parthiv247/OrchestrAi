@@ -1,0 +1,226 @@
+{
+  "experiment": "Experiment 2 \u2014 NL-to-SQL Component Match Accuracy",
+  "date": "2026-07-09T14:22:52.511358",
+  "n_questions": 100,
+  "overall_component_match_pct": 92.8,
+  "exact_match_pct": 75.0,
+  "std_dev": 13.3,
+  "median_score": 100.0,
+  "by_complexity": {
+    "simple_queries_1_20": 92.5,
+    "aggregation_21_40": 95.7,
+    "join_queries_41_60": 96.1,
+    "subquery_complex_61_80": 88.5,
+    "orchestrai_meta_81_100": 91.3
+  },
+  "target": {
+    "criterion": ">= 65% component match accuracy",
+    "met": true
+  },
+  "clause_accuracy": {
+    "agg": 100.0,
+    "has_select": 100.0,
+    "has_from": 100.0,
+    "order_by": 73.7,
+    "limit": 100.0,
+    "where": 66.7,
+    "distinct": 100.0,
+    "group_by": 85.4,
+    "join": 81.2,
+    "having": 66.7,
+    "subquery": 85.7,
+    "window": 20.0
+  },
+  "mode": "simulation",
+  "per_question_sample": [
+    {
+      "idx": 0,
+      "question": "How many taxi trips were recorded?",
+      "component_score": 1.0,
+      "generated_sql": "SELECT COUNT(t.*)\nFROM raw.nyc_taxi_trips AS t",
+      "expected_components": {
+        "agg": "COUNT",
+        "from": [
+          "raw.nyc_taxi_trips"
+        ],
+        "group": false
+      },
+      "clause_details": {
+        "agg": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 1,
+      "question": "What is the average fare amount for NYC taxi trips?",
+      "component_score": 1.0,
+      "generated_sql": "SELECT AVG(t.fare_amount)\nFROM raw.nyc_taxi_trips AS t",
+      "expected_components": {
+        "agg": "AVG",
+        "col": "fare_amount",
+        "from": [
+          "raw.nyc_taxi_trips"
+        ],
+        "group": false
+      },
+      "clause_details": {
+        "agg": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 2,
+      "question": "Show me the top 10 most expensive trips by total amount.",
+      "component_score": 0.75,
+      "generated_sql": "SELECT t.* FROM raw.nyc_taxi_trips AS t LIMIT 1000",
+      "expected_components": {
+        "from": [
+          "raw.nyc_taxi_trips"
+        ],
+        "order": true,
+        "limit": true
+      },
+      "clause_details": {
+        "order_by": false,
+        "limit": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 3,
+      "question": "How many orders are in 'completed' status?",
+      "component_score": 0.75,
+      "generated_sql": "SELECT COUNT(t.*) FROM raw.ecommerce_orders AS t LIMIT 1000",
+      "expected_components": {
+        "agg": "COUNT",
+        "where": true,
+        "from": [
+          "raw.ecommerce_orders"
+        ],
+        "group": false
+      },
+      "clause_details": {
+        "agg": true,
+        "where": false,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 4,
+      "question": "List all customers from the United States.",
+      "component_score": 0.75,
+      "generated_sql": "SELECT t.* FROM raw.ecommerce_customers AS t LIMIT 1000",
+      "expected_components": {
+        "where": true,
+        "from": [
+          "raw.ecommerce_customers"
+        ],
+        "limit": true
+      },
+      "clause_details": {
+        "where": false,
+        "limit": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 5,
+      "question": "What is the total revenue from all orders?",
+      "component_score": 1.0,
+      "generated_sql": "SELECT SUM(t.unit_price)\nFROM raw.ecommerce_orders AS t",
+      "expected_components": {
+        "agg": "SUM",
+        "col": "unit_price",
+        "from": [
+          "raw.ecommerce_orders"
+        ],
+        "group": false
+      },
+      "clause_details": {
+        "agg": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 6,
+      "question": "How many distinct customers have placed orders?",
+      "component_score": 1.0,
+      "generated_sql": "SELECT COUNT(DISTINCT t.customer_id)\nFROM raw.ecommerce_orders AS t",
+      "expected_components": {
+        "agg": "COUNT",
+        "col": "customer_id",
+        "from": [
+          "raw.ecommerce_orders"
+        ],
+        "distinct": true
+      },
+      "clause_details": {
+        "agg": true,
+        "distinct": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 7,
+      "question": "What is the maximum trip distance recorded?",
+      "component_score": 1.0,
+      "generated_sql": "SELECT MAX(t.trip_distance)\nFROM raw.nyc_taxi_trips AS t",
+      "expected_components": {
+        "agg": "MAX",
+        "col": "trip_distance",
+        "from": [
+          "raw.nyc_taxi_trips"
+        ]
+      },
+      "clause_details": {
+        "agg": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 8,
+      "question": "Show the 5 most recent orders.",
+      "component_score": 1.0,
+      "generated_sql": "SELECT t.*\nFROM raw.ecommerce_orders AS t\nORDER BY t.created_at DESC\nLIMIT 1000",
+      "expected_components": {
+        "from": [
+          "raw.ecommerce_orders"
+        ],
+        "order": true,
+        "limit": true
+      },
+      "clause_details": {
+        "order_by": true,
+        "limit": true,
+        "has_select": true,
+        "has_from": true
+      }
+    },
+    {
+      "idx": 9,
+      "question": "What is the average number of passengers per taxi trip?",
+      "component_score": 1.0,
+      "generated_sql": "SELECT AVG(t.passenger_count)\nFROM raw.nyc_taxi_trips AS t",
+      "expected_components": {
+        "agg": "AVG",
+        "col": "passenger_count",
+        "from": [
+          "raw.nyc_taxi_trips"
+        ]
+      },
+      "clause_details": {
+        "agg": true,
+        "has_select": true,
+        "has_from": true
+      }
+    }
+  ]
+}

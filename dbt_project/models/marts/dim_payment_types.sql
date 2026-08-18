@@ -1,0 +1,1 @@
+SELECT DISTINCT payment_method AS payment_type, CASE WHEN payment_method = 1 THEN 'Credit card' WHEN payment_method = 2 THEN 'Cash' WHEN payment_method = 3 THEN 'No charge' WHEN payment_method = 4 THEN 'Dispute' WHEN payment_method = 5 THEN 'Unknown' ELSE 'Other' END AS payment_type_description FROM stg_nyc_taxi_trips LIMIT 5

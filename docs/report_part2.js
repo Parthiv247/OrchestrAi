@@ -1,0 +1,161 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// OrchestrAI Final Dissertation Report — Part 2: Chapters 3-4
+// ═══════════════════════════════════════════════════════════════════════════
+'use strict';
+const {
+  Paragraph, TextRun, AlignmentType, PageBreak,
+  Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, LineRuleType,
+} = require('/sessions/friendly-fervent-cray/mnt/outputs/docx_gen/node_modules/docx');
+
+const { p, pRuns, h1, h2, h3, sp, pgBreak, bullet, figCap, tblCap, tc, tbl, fig,
+        NAVY, BLACK, GRAY, BLUE2, LGRAY } = require('./report_part1');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHAPTER 3: SYSTEM ARCHITECTURE
+// ══════════════════════════════════════════════════════════════════════════════
+function chapter3() {
+  return [
+    h1('3. SYSTEM ARCHITECTURE', true),
+
+    h2('3.1  Four-Tier System Architecture'),
+    p('OrchestrAI is designed as a four-tier system that cleanly separates concerns across Presentation, Application, Agent, and Persistence layers. This separation enables independent scaling, testing, and replacement of each tier without cascading changes — a critical design requirement for a research prototype that must be extended across multiple experimental iterations and eventually hardened for production deployment. The architecture is depicted in Figure 1.'),
+
+    p('The Presentation tier is built on Next.js 14 App Router with TypeScript strict mode. Thirteen pages cover the full operator workflow: an Overview dashboard with live metric cards showing pipeline health scores, incident counts, and rolling MTTR; a Pipelines catalogue with per-run drill-down and failure timeline; an Approvals page with WebSocket-driven real-time incident notifications showing the proposed unified diff for human review; an AI Analyst interface for NL-to-SQL queries against the DuckDB warehouse; a Data Quality monitor with schema registry and schema drift detection alerts; a Lineage graph with column-level dbt manifest integration; an Observability page with SLA trackers and error rate trends; and an Optimizer page with query cost analysis. All pages implement dark/light theme switching via CSS custom properties, entrance animations via Framer Motion, and server state management via TanStack Query v5 with 30-second automatic revalidation intervals.'),
+
+    p('The Application tier is a FastAPI 0.111 asynchronous server exposing 15 route modules covering: authentication, pipelines (CRUD + run history), incidents (detection events), healing orchestration (LangGraph invocation), approvals (operator approve/reject), analytics (DuckDB NL-to-SQL), connectors (credential management), lineage (dbt manifest parsing), data quality (schema drift + rules), observability (SLA metrics), learning (MTTR trend analytics), notifications (Slack webhook + email digest), scheduled reports, settings (team + tokens + audit), and health checks. All routes are protected by JWT HS256 middleware with a 30-minute token expiry. Sensitive credentials are encrypted at rest using Fernet symmetric encryption with a 256-bit key stored in the environment. SlowAPI enforces per-IP rate limiting, and structured JSON logging with correlation IDs enables distributed tracing across agent invocations from a single HTTP request to the final WebSocket event.'),
+
+    p('The Agent tier is the core novelty of OrchestrAI. LangGraph 0.4.8 compiles a directed StateGraph over six specialised agent nodes, each implemented as a Python async function that reads from and writes to a flat shared PipelineHealingState TypedDict. The StateGraph is compiled once at application startup — this compilation step validates all edge targets, conditional branch return values, and state schema consistency, providing compile-time safety guarantees before any runtime execution. The compiled graph is then invoked per incident via stream_async(), which yields intermediate state snapshots broadcast to connected WebSocket clients in real time, giving operators visibility into which agent is currently executing.'),
+
+    p('The Persistence tier uses three complementary storage systems with distinct access patterns. PostgreSQL 15 serves all OLTP workloads across 14 tables: pipeline_runs (telemetry records with six feature columns), incidents (anomaly detection events with agent outputs), healing_outcomes (resolved incident records with MTTR, strategy, and embedding_id), connector_configs (Fernet-encrypted third-party credentials), audit_log, users, teams, API tokens, notification rules, scheduled reports, data quality rules, schema registry entries, workspace settings, and Alembic migration version. DuckDB 0.10.3 serves analytical queries — the embedded warehouse with 4,120 synthetic records enables sub-second NL-to-SQL query execution without a separate analytics cluster or network round-trip. ChromaDB 0.5.23 provides vector storage for the RAG knowledge base: accepted fix embeddings are indexed with all-MiniLM-L6-v2 (384-dimensional cosine similarity) and retrieved at fix-generation time to ground LLM outputs in institutional incident history.'),
+    sp(60),
+
+    fig('fig1_architecture.png', 570, 335),
+    figCap('Figure 1: OrchestrAI four-tier system architecture — Presentation, Application, Agent, and Persistence layers with component relationships.'),
+    sp(80),
+
+    h2('3.2  Six-Agent Orchestration'),
+    p('The six agents are organised as a linear pipeline with one conditional branch at the ApprovalGate decision point. Each agent is implemented as a Python async function receiving the full PipelineHealingState and returning a dict containing only the fields it modifies. LangGraph merges these partial updates immutably into the canonical state before advancing execution to the next node. This functional design makes each agent independently unit-testable without instantiating the full graph, enabling the 79-test pytest suite to mock Groq API and ChromaDB calls selectively without requiring live network access.'),
+
+    p('MonitoringAgent runs first on every pipeline_run record ingested. It extracts the six-dimensional feature vector, applies StandardScaler normalisation, and passes the scaled vector to the IsolationForest model for binary anomaly detection. If the isolation score exceeds τ=0.65, the record is classified by the RandomForest model into one of six anomaly types. The MonitoringAgent writes anomaly_score and anomaly_class to the state and exits. On the normal path (score below threshold), the pipeline_run is marked NORMAL and no further agents execute, keeping happy-path computation cost below 5 ms.'),
+
+    p('DiagnosisAgent constructs a ReAct prompt containing: the six telemetry feature values with their 7-day baseline statistics, the last ten application log lines from the pipeline, the anomaly class and score from MonitoringAgent, and a structured output specification requiring a JSON object with diagnosis, root_cause, confidence_score, and recommended_action fields. The Groq llama-3.3-70b-versatile model (128k context) processes this prompt and returns the structured diagnosis. Median LLM call latency is 7.8 seconds at standard Groq API load. DiagnosisAgent parses the JSON response with a fallback regex extractor for malformed outputs and writes all four fields to the state.'),
+
+    p('FixWriterAgent retrieves the top-3 most semantically similar historical fixes from ChromaDB by embedding the current diagnosis text using all-MiniLM-L6-v2 and executing a cosine similarity query. The retrieved examples are formatted as XML-tagged few-shot context in the LLM prompt. The model generates a unified diff fix in a structured output block, which the FixWriterAgent validates against 12 automated checks before writing proposed_fix and rag_hits to the state. The ApprovalGateAgent is conditionally invoked based on confidence_score: if score ≥ 0.85, execution proceeds directly to DeploymentAgent for fully autonomous repair; otherwise, ApprovalGateAgent suspends graph execution and broadcasts the pending incident to the operator Approvals page via WebSocket. DeploymentAgent applies the approved diff, triggers the pipeline re-run, and records the resolved_at timestamp. LearningAgent closes the feedback loop by embedding the accepted fix into ChromaDB and recording the full incident resolution to healing_outcomes.'),
+    sp(60),
+
+    fig('fig2_agent_flow.png', 570, 204),
+    figCap('Figure 2: Six-agent LangGraph orchestration flow — conditional edge bypasses Approval Gate for high-confidence (≥0.85) repairs; all agents communicate via shared typed state.'),
+    sp(80),
+
+    h2('3.3  Shared State Design and Conditional Routing'),
+    p('The PipelineHealingState TypedDict defines 18 typed fields that flow through the graph immutably. Each field is written by exactly one agent (or the initial graph invocation), preventing concurrent write conflicts in the async execution environment. The key fields, their types, and owning agents are as follows:'),
+    bullet('pipeline_id (str), run_record (dict): set by the invoking HTTP handler at graph initiation from the incoming pipeline run webhook payload'),
+    bullet('anomaly_score (float), anomaly_class (str): written by MonitoringAgent after two-tier ML inference; anomaly_class is one of ZERO_LOAD, ROW_COUNT_DROP, NULL_SPIKE, PIPELINE_DELAY, CONSEC_FAILURES, or NORMAL'),
+    bullet('diagnosis (str), confidence_score (float), root_cause (str), recommended_action (str): written by DiagnosisAgent after Groq LLM ReAct reasoning; confidence_score ranges from 0.0 (uncertain) to 1.0 (certain)'),
+    bullet('proposed_fix (str), rag_hits (List[dict]): written by FixWriterAgent after ChromaDB retrieval and LLM fix generation; rag_hits contains the metadata of the three retrieved examples for audit trail purposes'),
+    bullet('approval_status (Literal[\'pending\', \'approved\', \'rejected\', \'auto_approved\']): set to auto_approved when confidence ≥ 0.85 bypasses ApprovalGateAgent; set to pending, then updated to approved or rejected by operator action'),
+    bullet('deployment_outcome (str), resolved_at (ISO timestamp), mttr_seconds (float): written by DeploymentAgent after fix application and pipeline re-run'),
+    bullet('learning_recorded (bool), embedding_id (str): written by LearningAgent after ChromaDB indexing completes'),
+    bullet('error_trace (Optional[str]): written by any agent on unhandled exception, enabling fault isolation without graph crashes'),
+    sp(80),
+
+    p('The conditional routing edge is implemented as a LangGraph router function that inspects confidence_score and returns either "approval_gate" or "deployment" as the next node name. The graph compiler validates that both return values are registered nodes at compile time, preventing misconfiguration. In the experimental dataset, 68% of injected failures achieved confidence_score ≥ 0.85, enabling fully autonomous repair for the majority of incidents with no human latency contribution to MTTR.'),
+
+    p('Error propagation through error_trace provides fault isolation without graph crashes. When any agent catches an unhandled exception — Groq API timeout, ChromaDB connection failure, JSON parse error from LLM response — it writes the exception traceback to error_trace and returns an early partial state update. LangGraph routes the graph to a terminal failure node, which triggers an alert via the notification service rather than propagating an unhandled exception to the FastAPI request handler. This pattern was critical for experimental stability: across all 100 failure injections in the ablation study (20 scenarios × 5 repetitions), zero graph crashes were recorded despite intermittent Groq API rate-limit errors. The retry decorator applied to Groq API calls (exponential back-off, max 3 retries, jitter) resolved all transient API failures transparently.'),
+
+    p('State serialisation is a LangGraph built-in feature: each state snapshot is a plain Python dict (from the TypedDict) that can be JSON-serialised for WebSocket broadcast, logged for debugging, or checkpointed to a database for replay after a system crash. This serialisability property is what enables the real-time WebSocket updates to the operator UI during graph execution: the stream_async() generator yields a state snapshot after every node completion, which the FastAPI route handler broadcasts to all subscribed WebSocket clients. The frontend Approvals page deserialises these snapshots and updates its progress indicator to show which of the six agents has completed.'),
+
+    p('The immutability contract — each field written by exactly one agent — eliminates distributed locks and transaction coordination, a critical simplification for an async Python system. Each agent safely reads any previously written field without race conditions, and the fixed LLM temperature (0.0 for all Groq calls) makes any recorded incident deterministically replayable for post-incident audit.'),
+    pgBreak(),
+    tblCap('Table 4: Six-agent responsibilities, key state outputs, and tool access.'),
+    tbl([
+      new TableRow({ children: [tc('Agent', { bold: true, shade: true, width: 2000 }), tc('Core Responsibility', { bold: true, shade: true, width: 3800 }), tc('Key State Outputs', { bold: true, shade: true, width: 2200 }), tc('Tools / APIs', { bold: true, shade: true, width: 1360 })] }),
+      new TableRow({ children: [tc('MonitoringAgent', { bold: true, width: 2000 }), tc('IsolationForest binary detection (τ=0.65) → RandomForest 6-class classification; 4.1 ms median inference per run', { width: 3800 }), tc('anomaly_score, anomaly_class', { width: 2200 }), tc('IF + RF pkl', { width: 1360 })] }),
+      new TableRow({ children: [tc('DiagnosisAgent', { bold: true, width: 2000 }), tc('ReAct LLM root-cause reasoning on telemetry features + last 10 log lines; structured JSON output with confidence score', { width: 3800 }), tc('diagnosis, confidence_score, root_cause, recommended_action', { width: 2200 }), tc('Groq API', { width: 1360 })] }),
+      new TableRow({ children: [tc('FixWriterAgent', { bold: true, width: 2000 }), tc('ChromaDB cosine top-3 RAG retrieval → few-shot unified diff generation; 12-check fix validation suite', { width: 3800 }), tc('proposed_fix, rag_hits', { width: 2200 }), tc('ChromaDB, Groq', { width: 1360 })] }),
+      new TableRow({ children: [tc('ApprovalGateAgent', { bold: true, width: 2000 }), tc('Write pending incident to PostgreSQL; WebSocket-broadcast incident_created event; suspend graph for operator review', { width: 3800 }), tc('approval_status: pending', { width: 2200 }), tc('PG, WebSocket', { width: 1360 })] }),
+      new TableRow({ children: [tc('DeploymentAgent', { bold: true, width: 2000 }), tc('Apply approved unified diff; trigger ETL pipeline re-run; record resolved_at and compute mttr_seconds', { width: 3800 }), tc('deployment_outcome, resolved_at, mttr_seconds', { width: 2200 }), tc('PG, ETL exec', { width: 1360 })] }),
+      new TableRow({ children: [tc('LearningAgent', { bold: true, width: 2000 }), tc('Embed accepted fix with all-MiniLM-L6-v2; persist to ChromaDB; write MTTR + strategy + embedding_id to healing_outcomes', { width: 3800 }), tc('learning_recorded, embedding_id', { width: 2200 }), tc('ChromaDB, PG', { width: 1360 })] }),
+    ], [2000, 3800, 2200, 1360]),
+    fig('ss_overview.png', 384, 240),
+    figCap('Figure 7: OrchestrAI Overview Dashboard — live pipeline health view (5.77M records, 9 incidents).'),
+    pgBreak(),
+  ];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHAPTER 4: IMPLEMENTATION DETAILS
+// ══════════════════════════════════════════════════════════════════════════════
+function chapter4() {
+  return [
+    h1('4. IMPLEMENTATION DETAILS', true),
+
+    p('OrchestrAI was constructed over eight two-week work packages following a feature-driven iterative delivery model, each producing a continuously deployable vertical slice from database schema migration through FastAPI endpoint to Next.js frontend page. Work Package 1 established the database schema and Alembic migrations; WP2 built the ML training pipeline and MonitoringAgent; WP3 implemented DiagnosisAgent and FixWriterAgent with Groq and ChromaDB; WP4 added the ApprovalGateAgent with WebSocket infrastructure; WP5 built the DeploymentAgent and LearningAgent, completing the six-agent graph; WP6 developed the Next.js frontend across all 13 pages; WP7 added the NL-to-SQL Analyst, Data Quality monitor, and Lineage graph; WP8 implemented security hardening, CI/CD pipeline, and experimental evaluation harness.'),
+
+    h2('4.1  Technology Stack'),
+    p('The technology selection prioritises proven open-source components with active maintenance, strong typing support, and async-first design to support the concurrent WebSocket broadcasts and LLM API calls central to OrchestrAI\'s real-time responsiveness. Table 5 presents the complete stack with version numbers and each component\'s specific role.'),
+    tblCap('Table 5: OrchestrAI technology stack — key components by layer.'),
+    tbl([
+      new TableRow({ children: [tc('Layer', { bold: true, shade: true, width: 1400 }), tc('Technology', { bold: true, shade: true, width: 2400 }), tc('Ver.', { bold: true, shade: true, width: 700 }), tc('Role in OrchestrAI', { bold: true, shade: true, width: 4860 })] }),
+      ...([
+        ['Frontend',     'Next.js / TypeScript',    '14 / 5',  '13 App Router pages, TanStack Query v5, Framer Motion, Recharts, dark/light theme, 0 TS errors'],
+        ['Backend',      'FastAPI',                 '0.111',   '15 REST route modules, async I/O, JWT HS256 middleware, Fernet encryption, SlowAPI rate limiting'],
+        ['Orchestration','LangGraph StateGraph',    '0.4.8',   '6-agent directed graph; flat shared typed state; conditional routing; structured human interruption'],
+        ['LLM',          'Groq (llama-3.3-70b)',    'latest',  'Diagnosis ReAct reasoning + unified-diff fix generation; 128k context window; ~7.8 s median latency'],
+        ['ML',           'scikit-learn',            '1.5.0',   'IsolationForest (n=200, τ=0.65, AUC=0.896) + RandomForest (n=200, balanced, F1=0.980)'],
+        ['Embeddings',   'sentence-transformers',   '3.1',     'all-MiniLM-L6-v2 for ChromaDB fix embeddings (384-dim cosine similarity, 14 ms encode)'],
+        ['Vector DB',    'ChromaDB',                '0.5.23',  'Persistent RAG store; accepted fix embeddings; top-3 cosine retrieval at fix-generation time'],
+        ['Database',     'PostgreSQL 15 + Alembic', '1.13',    '14 OLTP tables; healing_outcomes drives MTTR analytics, learning trend, and NL-SQL queries'],
+        ['Analytics',    'DuckDB',                  '0.10.3',  '4,120-record embedded warehouse; sub-second NL-to-SQL; no separate cluster required'],
+        ['Testing',      'pytest + GitHub Actions', '8.2',     '79 tests, 0 failures; Groq/ChromaDB/Snowflake mocked; CI validates every push to main'],
+      ].map(([layer, tech, ver, role]) => new TableRow({ children: [tc(layer, { width: 1400 }), tc(tech, { bold: true, width: 2400 }), tc(ver, { width: 700, center: true }), tc(role, { width: 4860 })] }))),
+    ], [1400, 2400, 700, 4860]),
+    sp(120),
+
+    h2('4.2  ML Detection Pipeline'),
+    p('The two-tier ML pipeline forms the MonitoringAgent\'s analytical core. Feature engineering extracts a 6-dimensional vector from each PostgreSQL pipeline_run record: row_count (integer, total records ingested), byte_throughput (float, MB/s), null_ratio (float in [0,1], fraction of null values across all columns), schema_hash (categorical integer representing the pipeline\'s schema fingerprint, one-hot encoded into 5 binary dimensions), latency_ms (float, end-to-end pipeline execution time in milliseconds), and error_rate (float in [0,1], fraction of records that failed validation). All continuous features are standardised using a StandardScaler fitted on the 2,000-record training set before being passed to either model, ensuring that features of different scales do not dominate the anomaly scoring.'),
+
+    p('Tier 1 — IsolationForest (n_estimators=200, contamination=0.15, random_state=42): The model isolates anomalies by recursively partitioning the feature space with random split points. Anomalies, being rare and statistically distinct, require fewer random partitions to isolate and thus receive lower average path lengths. The contamination parameter of 0.15 was calibrated against Hevo production telemetry samples shared during the project scoping phase. The threshold τ=0.65 was selected via 5-fold cross-validation on a held-out 400-record validation set, maximising the Youden J statistic (sensitivity + specificity − 1) across all anomaly types simultaneously. At τ=0.65, the model achieves precision=0.912 and recall=0.874 on the held-out test set, with ROC-AUC=0.896, exceeding the 0.85 project target.'),
+
+    p('Tier 2 — RandomForest (n_estimators=200, class_weight=\'balanced\', max_depth=None, random_state=42): Classifies all records flagged by IsolationForest into one of six categories: ZERO_LOAD (row_count=0, connector authentication or network failure), ROW_COUNT_DROP (>20% volume reduction relative to the 7-day rolling mean, indicating upstream data loss), NULL_SPIKE (null_ratio >0.15, indicating source schema change or data quality regression), PIPELINE_DELAY (latency_ms >2× the 7-day rolling median, indicating compute resource contention), CONSEC_FAILURES (≥3 consecutive error_rate >0.05 records in the last 10 runs, indicating systemic connector failure), and NORMAL (IsolationForest false positive). The class_weight=\'balanced\' setting automatically adjusts class weights inversely proportional to frequency, compensating for the 5:1 imbalance between NORMAL and rare anomaly types. Both models are serialised to .pkl files — IsolationForest: 2.1 MB; RandomForest: 4.7 MB — loaded at backend startup, giving a median inference latency of 4.1 ms per sample, well within the 100 ms real-time processing budget.'),
+    sp(60),
+
+    fig('fig3_ml_pipeline.png', 570, 214),
+    figCap('Figure 3: Two-tier ML detection pipeline — IsolationForest gates binary detection; RandomForest classifies anomaly type for strategy-specific healing.'),
+    sp(100),
+
+    h2('4.3  LangGraph Agent Implementation'),
+    p('The LangGraph StateGraph is compiled by registering six Python async functions as nodes, specifying directed edges between them, and defining one conditional edge at the DiagnosisAgent to ApprovalGateAgent/DeploymentAgent fork. The compilation step performs static validation: it verifies that all referenced node names are registered, all conditional branch return values are valid node names, and the initial state schema matches the PipelineHealingState TypedDict annotation. These compile-time checks catch configuration errors that would otherwise surface as runtime KeyErrors during production incident handling.'),
+
+    p('The FixWriterAgent implements a structured prompt template that enforces the output format required by the 12-check validation suite. The template injects the three ChromaDB-retrieved incidents as XML-tagged few-shot examples, followed by the current incident diagnosis text, anomaly class, and pipeline configuration metadata. The template explicitly instructs the model to output the fix as a UNIFIED DIFF block delimited by triple backtick markers, enabling the DeploymentAgent to extract the fix with a targeted regex parser. The 12-check validation suite applied before accepting any proposed fix includes: Python syntax validation (ast.parse()), absence of os.system() or subprocess.run() calls outside the approved ETL wrapper, no eval() or exec() invocations, diff non-emptiness and non-whitespace-only checks, maximum line length enforcement (120 characters), maximum diff size limit (500 lines to prevent over-aggressive patches), and idempotency verification (re-applying the fix to an already-patched file produces no change, confirmed using difflib.unified_diff).'),
+
+    p('WebSocket integration uses FastAPI\'s native WebSocket protocol with a ConnectionManager singleton class that maintains a dictionary keyed by pipeline_id, mapping each key to a list of active WebSocket connection objects. When ApprovalGateAgent calls await manager.broadcast(pipeline_id, event_payload), the ConnectionManager serialises the payload to JSON and calls websocket.send_text() for each subscriber. WebSocketDisconnect exceptions are caught per-subscriber and the disconnected socket is immediately removed from the subscription list, preventing memory accumulation across long operator sessions. The frontend Approvals page subscribes to WebSocket events on mount using a useEffect hook, triggering TanStack Query invalidation on incident_created events to refetch the pending incidents list and render the new approval card in the operator\'s queue.'),
+
+    h2('4.4  RAG-Based Institutional Learning'),
+    p('ChromaDB 0.5.23 is configured with a persistent on-disk collection named orchestrai_fixes with cosine distance as the similarity metric. Each stored document concatenates three text fields with pipe delimiters: the anomaly_class, the LLM-generated diagnosis text, and the accepted fix unified diff. This multi-field concatenation strategy ensures that semantic similarity is computed across the full incident context rather than fix text alone. The design motivation is that semantically similar diagnoses may require syntactically distinct fixes depending on the specific pipeline configuration and framework version, whereas the diagnosis text captures the underlying root-cause pattern more reliably than the fix code.'),
+
+    p('Embedding generation uses the all-MiniLM-L6-v2 sentence-transformers model, producing 384-dimensional dense vectors in approximately 14 ms per document. At query time, the FixWriterAgent generates an embedding of the current diagnosis text only (not the full concatenated document) and executes a ChromaDB query with n_results=3, applying a post-retrieval cosine similarity threshold of 0.60 to exclude weakly related historical incidents from the LLM prompt context. Documents below 0.60 similarity are excluded, and fix generation falls back to zero-shot LLM generation — a conservative choice that prevents the model from being misled by low-relevance examples.'),
+
+    p('The LearningAgent records each resolved incident to the healing_outcomes PostgreSQL table with the following columns: pipeline_id, anomaly_class, strategy (the first line of the accepted unified diff, serving as a compact human-readable repair label), mttr_seconds, resolved_at, confidence_score, rag_hit_count, and embedding_id (the ChromaDB document identifier for the newly indexed fix). This relational record enables the NL-to-SQL Analyst to answer operational analytics queries such as "What is the average MTTR for NULL_SPIKE anomalies over the last 30 days?" or "Which repair strategy has the highest success rate for PIPELINE_DELAY incidents?" — closing the analytics feedback loop between operational learning and management visibility. The embedding_id column also enables deduplication: if an identical fix is submitted for the same pipeline, the LearningAgent detects the duplicate by querying ChromaDB for the fix text before embedding, avoiding redundant vector store growth.'),
+
+    h2('4.5  Security Architecture and API Design'),
+    p('The security architecture implements defence-in-depth across four complementary layers. At the transport layer, all production traffic is expected to pass through HTTPS with TLS 1.3, enforced by the reverse proxy (Nginx in the reference Docker Compose deployment). At the application layer, JWT HS256 tokens with a 30-minute expiry authenticate all /api/* requests. The JWT middleware is applied as a FastAPI dependency on all protected routes, returning 401 Unauthorized for missing, expired, or malformed tokens with a generic error message that does not reveal whether the token was expired versus invalid — preventing token-type enumeration attacks.'),
+
+    p('At the data layer, all third-party credentials — database passwords, Groq API keys, ChromaDB connection strings, OAuth tokens for data source connectors — are stored encrypted in PostgreSQL using Fernet symmetric encryption. The FERNET_KEY environment variable holds the encryption key, which is loaded once at startup and retained in process memory; credentials are decrypted on-demand for API calls and are never written to application logs. All database queries use asyncpg\'s parameterised statement interface (execute(query, *args)), eliminating SQL injection as an attack vector. Pydantic v2 models with strict=True validate all incoming request body fields, rejecting unexpected field types rather than coercing them silently.'),
+
+    p('At the network layer, CORS middleware restricts allowed origins to the NEXT_PUBLIC_APP_URL value in production, preventing cross-origin credential hijacking. SlowAPI enforces per-IP rate limits: 100 requests/minute for general API endpoints and 10/minute for authentication endpoints to mitigate brute-force password attacks. Every authenticated API call generates a structured JSON log entry with correlation_id, user_id, endpoint, method, status_code, and duration_ms fields, enabling audit trail reconstruction for incident investigation without exposing sensitive payload data.'),
+
+    h2('4.6  Frontend Architecture'),
+    p('The Next.js 14 App Router frontend employs a server-component-first architecture. Pages that display static or infrequently-changing data — the Pipelines catalogue, Connectors gallery, Settings pages, and Lineage graph — use React Server Components to eliminate client-side JavaScript hydration overhead and improve initial page load performance. Pages requiring real-time updates — Overview dashboard, Approvals queue, Observability metrics — use React Client Components with TanStack Query v5 for server state management and native WebSocket hooks for live incident data. This hybrid rendering strategy reduces the total JavaScript bundle size by approximately 35% compared to a fully client-rendered single-page application, improving initial load time particularly on lower-bandwidth connections.'),
+
+    p('Dark and light themes are implemented via a set of CSS custom properties (--bg-primary, --bg-secondary, --text-primary, --text-muted, --border-color, --accent-blue, --accent-navy, and twelve additional semantic tokens) injected at the html element level from a ThemeProvider context component. The active theme class (dark or light) is determined server-side from a cookie value before the first HTML response is generated, avoiding the flash-of-unstyled-content problem common in client-side localStorage-based theme implementations. Framer Motion provides entrance animations for metric cards (fadeInUp variant, 0.3 s duration, staggered by index), table row additions (slideInLeft), and modal open/close transitions (scale + opacity with spring physics). Recharts renders all data visualisations — MTTR trend line, anomaly class distribution donut, learning curve, and F1 score bar chart — inside ResponsiveContainer wrappers that adapt to viewport width without explicit breakpoint handling.'),
+
+    p('The Analyst page NL-to-SQL interface posts natural-language questions to /api/analytics/query, which calls the DiagnosisAgent\'s NL-to-SQL function with the DuckDB schema injected as a typed CREATE TABLE statement in the Groq system prompt. The FastAPI route executes the generated SQL against DuckDB via the DuckDB Python API, serialises the result set as JSON, and returns it to the frontend. The Analyst page renders results in an interactive table with column sorting and row filtering. For numeric result sets (e.g., MTTR averages by anomaly type), the page additionally renders a bar chart via Recharts and offers a PNG export using html2canvas for inclusion in operational reports.'),
+
+    fig('ss_analyst.png', 320, 200),
+    figCap('Figure 8: AI Analyst — NL-to-SQL query, DuckDB execution, bar chart output.'),
+    pgBreak(),
+  ];
+}
+
+module.exports = { chapter3, chapter4 };

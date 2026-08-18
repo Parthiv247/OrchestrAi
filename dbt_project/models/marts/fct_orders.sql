@@ -1,0 +1,1 @@
+SELECT order_key, order_id, customer_id, product_name, category, unit_price, quantity, total_amount, status, is_completed, city, ordered_at, order_month_key FROM stg_ecommerce_orders LIMIT 1000

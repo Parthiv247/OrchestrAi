@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# OrchestrAI backend startup script
+# Runs: alembic migrations → dbt run → uvicorn
+set -e
+
+echo "=== OrchestrAI Backend Starting ==="
+
+# ── 1. Wait for PostgreSQL ─────────────────────────────────────────────────────
+echo "[1/4] Waiting for PostgreSQL..."
+RETRIES=30
+until python3 -c "
+import psycopg2, os, sys
+try:
+    psycopg2.connect(
+        host=os.getenv('POSTGRES_HOST','localhost'),
+        port=int(os.getenv('POSTGRES_PORT',5432)),
+        dbname=os.getenv('POSTGRES_DB','orchestrai'),
+        user=os.getenv('POSTGRES_USER','admin'),
+        password=os.getenv('POSTGRES_PASSWORD','orchestrai_secret'),
+        connect_timeout=3
+    ).close()
+    sys.exit(0)
+except: sys.exit(1)
+" 2>/dev/null; do
+  RETRIES=$((RETRIES - 1))
+  if [ $RETRIES -le 0 ]; then
+    echo "ERROR: PostgreSQL not ready after 30 attempts — starting anyway"
+    break
+  fi
+  echo "  PostgreSQL not ready, retrying in 2s... ($RETRIES left)"
+  sleep 2
+done
+echo "  PostgreSQL ready."
+
+# ── 2. Alembic migrations ──────────────────────────────────────────────────────
+echo "[2/4] Running Alembic migrations..."
+cd /app/backend
+alembic upgrade head || echo "WARNING: Alembic migration failed — continuing"
+cd /app
+
+# ── 3. dbt run ────────────────────────────────────────────────────────────────
+echo "[3/4] Running dbt transformations..."
+if [ -d "/app/dbt_project" ]; then
+  cd /app/dbt_project
+  dbt run --profiles-dir . --project-dir . --target dev 2>&1 | tail -20 || echo "WARNING: dbt run failed — mart tables may be missing"
+  cd /app
+else
+  echo "  dbt_project not found — skipping"
+fi
+
+# ── 4. Start FastAPI ───────────────────────────────────────────────────────────
+echo "[4/4] Starting FastAPI..."
+exec uvicorn backend.main:app \
+  --host 0.0.0.0 \
+  --port "${PORT:-8000}" \
+  --workers "${WORKERS:-2}"

@@ -1,0 +1,49 @@
+version: 2
+
+sources:
+  - name: orchestrai
+    database: orchestrai
+    schema: raw
+    description: Raw ingested data for OrchestrAI — NYC Taxi + E-Commerce datasets
+    tables:
+      - name: nyc_taxi_trips
+        description: NYC Yellow Taxi trip records January 2024 (5.7M rows)
+        columns:
+          - name: id
+            description: Auto-increment primary key
+            tests: [not_null, unique]
+          - name: pickup_datetime
+            description: Trip pickup timestamp
+            tests: [not_null]
+          - name: dropoff_datetime
+            description: Trip dropoff timestamp
+            tests: [not_null]
+          - name: total_amount
+            description: Total fare including surcharges and tips
+            tests: [not_null]
+          - name: pu_location_id
+            description: TLC pickup zone ID
+          - name: do_location_id
+            description: TLC dropoff zone ID
+
+      - name: ecommerce_orders
+        description: Synthetic e-commerce orders (50K rows, Faker-generated)
+        columns:
+          - name: id
+            description: Surrogate key
+            tests: [not_null, unique]
+          - name: order_id
+            description: Business order identifier
+            tests: [not_null]
+          - name: customer_id
+            description: Customer identifier
+            tests: [not_null]
+          - name: total_amount
+            description: Total order value
+            tests: [not_null]
+          - name: status
+            description: Order status
+            tests:
+              - accepted_values:
+                  values: ['placed', 'processing', 'shipped', 'delivered',
+                           'cancelled', 'returned']

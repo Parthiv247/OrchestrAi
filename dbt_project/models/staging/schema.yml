@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: stg_nyc_taxi_trips
+    description: >
+      Cleaned and standardized NYC Yellow Taxi trips. Filters invalid trips,
+      standardizes vendor/payment enums, adds derived duration and airport flags.
+    columns:
+      - name: trip_id
+        description: Surrogate primary key from raw.id
+        tests: [not_null, unique]
+      - name: vendor_name
+        description: Taxi vendor name
+        tests:
+          - accepted_values:
+              values: ['Creative Mobile', 'VeriFone', 'Unknown']
+      - name: pickup_at
+        tests: [not_null]
+      - name: dropoff_at
+        tests: [not_null]
+      - name: fare_amount
+        tests: [not_null]
+      - name: total_amount
+        tests: [not_null]
+      - name: payment_method
+        tests:
+          - accepted_values:
+              values: ['Credit Card', 'Cash', 'No Charge', 'Dispute', 'Unknown']
+
+  - name: stg_ecommerce_orders
+    description: >
+      Cleaned e-commerce orders with derived completion flag and normalized strings.
+    columns:
+      - name: order_key
+        description: Surrogate PK from raw.id
+        tests: [not_null, unique]
+      - name: customer_id
+        tests: [not_null]
+      - name: total_amount
+        tests: [not_null]
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['placed', 'processing', 'shipped', 'delivered',
+                       'cancelled', 'returned']

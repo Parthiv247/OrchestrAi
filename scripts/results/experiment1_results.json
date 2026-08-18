@@ -1,0 +1,93 @@
+{
+  "experiment": "Experiment 1 \u2014 Self-Healing MTTR Reduction",
+  "date": "2026-07-09T14:22:52.487954",
+  "n_failures": 20,
+  "failure_types": [
+    "ROW_COUNT_DROP",
+    "NULL_SPIKE",
+    "PIPELINE_DELAY",
+    "ZERO_LOAD",
+    "CONSECUTIVE_FAILURES"
+  ],
+  "conditions": {
+    "orchestrai": {
+      "n": 20,
+      "mean": 8.8,
+      "std": 2.9,
+      "min": 5.27,
+      "max": 14.68,
+      "median": 7.89,
+      "ci95_low": 7.53,
+      "ci95_high": 10.04
+    },
+    "rule_based": {
+      "n": 20,
+      "mean": 41.43,
+      "std": 11.59,
+      "min": 23.07,
+      "max": 74.06,
+      "median": 41.02,
+      "ci95_low": 36.35,
+      "ci95_high": 46.38
+    },
+    "no_healing": {
+      "n": 20,
+      "mean": 270.83,
+      "std": 44.93,
+      "min": 207.85,
+      "max": 395.29,
+      "median": 267.78,
+      "ci95_low": 251.14,
+      "ci95_high": 290.03
+    }
+  },
+  "primary_comparison": {
+    "orchestrai_vs_rule_based": {
+      "reduction_pct": 78.8,
+      "t_statistic": -12.9378,
+      "p_value": 0.0,
+      "cohen_d": 2.893,
+      "significant": true
+    }
+  },
+  "secondary_comparison": {
+    "orchestrai_vs_no_healing": {
+      "reduction_pct": 96.8
+    }
+  },
+  "detection_rate_pct": 100.0,
+  "per_failure_type": {
+    "ROW_COUNT_DROP": {
+      "orchestrai_mean_min": 8.19,
+      "rule_based_mean_min": 45.43,
+      "reduction_pct": 82.0
+    },
+    "NULL_SPIKE": {
+      "orchestrai_mean_min": 9.74,
+      "rule_based_mean_min": 41.92,
+      "reduction_pct": 76.8
+    },
+    "PIPELINE_DELAY": {
+      "orchestrai_mean_min": 6.22,
+      "rule_based_mean_min": 39.07,
+      "reduction_pct": 84.1
+    },
+    "ZERO_LOAD": {
+      "orchestrai_mean_min": 6.35,
+      "rule_based_mean_min": 36.64,
+      "reduction_pct": 82.7
+    },
+    "CONSECUTIVE_FAILURES": {
+      "orchestrai_mean_min": 13.5,
+      "rule_based_mean_min": 44.08,
+      "reduction_pct": 69.4
+    }
+  },
+  "sandbox_pass_rate_pct": 90.0,
+  "avg_confidence_score": 0.858,
+  "target": {
+    "criterion": ">= 50% MTTR reduction vs rule-based, p < 0.05",
+    "met": "True"
+  },
+  "mode": "simulation"
+}

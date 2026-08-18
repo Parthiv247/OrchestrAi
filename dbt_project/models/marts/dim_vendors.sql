@@ -1,0 +1,1 @@
+SELECT DISTINCT vendor_name AS vendor_id, vendor_name AS vendor_name FROM stg_nyc_taxi_trips LIMIT 100

@@ -1,0 +1,207 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OrchestrAI — full stack. Start with: docker-compose up -d
+#
+# NOTE (corrections vs. naive spec, so the stack actually works):
+#  * Password standardized to orchestrai_secret to match backend/core/config.py
+#    defaults, .env, and the seeded data.
+#  * Backend env uses the REAL var names the code reads (POSTGRES_*, CHROMA_HOST/
+#    CHROMA_PORT) — not DATABASE_URL / CHROMADB_*.
+#  * Schema is owned by SQLAlchemy create_all() at backend boot; init_db.sql only
+#    adds extensions + the cost metric (prevents column drift like savings_pct).
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  orchestrai:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  chromadb_data:
+  airflow_logs:
+  airflow_plugins:
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.1
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:orchestrai_secret@postgres:5432/orchestrai
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__WEBSERVER__SECRET_KEY: orchestrai-secret-key
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+    GROQ_API_KEY: ${GROQ_API_KEY}
+    LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+    ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    # Snowflake destination (blank account -> falls back to local PG schema snowflake_dest)
+    SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT:-}
+    SNOWFLAKE_USER: ${SNOWFLAKE_USER:-}
+    SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD:-}
+    SNOWFLAKE_DB: ${SNOWFLAKE_DB:-ORCHESTRAI}
+    SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE:-COMPUTE_WH}
+    SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE:-}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - airflow_logs:/opt/airflow/logs
+    - airflow_plugins:/opt/airflow/plugins
+    - ./backend:/opt/airflow/backend
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - orchestrai
+
+services:
+
+  # ─── DATABASE ───────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: orchestrai-postgres
+    environment:
+      POSTGRES_DB: orchestrai
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: orchestrai_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin", "-d", "orchestrai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orchestrai
+
+  # ─── VECTOR STORE ────────────────────────────
+  chromadb:
+    image: chromadb/chroma:0.5.23   # pin to match backend client chromadb==0.5.23 (latest server breaks the API)
+    container_name: orchestrai-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - orchestrai
+
+  # ─── AIRFLOW ─────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: orchestrai-airflow-init
+    # Single-line command: folded YAML previously split the `users create` flags
+    # onto separate lines, so the shell read --firstname/--role as commands (127).
+    command:
+      - bash
+      - -c
+      - airflow db migrate && airflow users create --username admin --password admin --firstname OrchestrAI --lastname Admin --role Admin --email admin@orchestrai.ai || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: orchestrai-airflow-web
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: orchestrai-airflow-scheduler
+    command: scheduler
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ─── BACKEND ─────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: orchestrai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Var names the code in backend/core/config.py + agents actually read:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: orchestrai
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: orchestrai_secret
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+      AIRFLOW_BASE_URL: http://airflow-webserver:8080
+      AIRFLOW_USER: admin
+      AIRFLOW_PASSWORD: admin
+      APP_ENV: ${APP_ENV:-development}
+      INTERNAL_API_URL: http://backend:8000
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      # Snowflake destination (blank account -> falls back to local PG schema snowflake_dest)
+      SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT:-}
+      SNOWFLAKE_USER: ${SNOWFLAKE_USER:-}
+      SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD:-}
+      SNOWFLAKE_DB: ${SNOWFLAKE_DB:-ORCHESTRAI}
+      SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE:-COMPUTE_WH}
+      SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE:-}
+      SNOWFLAKE_CREDIT_PRICE: ${SNOWFLAKE_CREDIT_PRICE:-2.5}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      ALERT_EMAIL: ${ALERT_EMAIL}
+    volumes:
+      - ./backend:/app/backend
+      - ./ml:/app/ml
+      - ./dbt_project:/app/dbt_project
+      - ./data:/app/data   # CSV/file-upload connector storage (uploads + any data/<file>)
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - orchestrai
+
+  # ─── FRONTEND ────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: orchestrai-frontend
+    ports:
+      - "3000:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - orchestrai

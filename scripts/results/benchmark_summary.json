@@ -1,0 +1,39 @@
+{
+  "project": "OrchestrAI \u2014 Autonomous Multi-Agent AI Platform for Self-Healing Data Pipelines",
+  "student": "Parthiv Patel | 2024AA05129 | M.Tech AI & ML | BITS ZG628T",
+  "date": "2026-07-09T14:22:52.518225",
+  "mode": "simulation",
+  "experiments": {
+    "E1_self_healing_mttr": {
+      "description": "MTTR reduction vs rule-based baseline (paired t-test)",
+      "result": "78.8% MTTR reduction",
+      "target": ">= 50%",
+      "met": "True",
+      "p_value": 0.0,
+      "cohen_d": 2.893,
+      "orchestrai_mttr_min": 8.8,
+      "rule_based_mttr_min": 41.43,
+      "detection_rate_pct": 100.0
+    },
+    "E2_nl_to_sql_accuracy": {
+      "description": "Component match accuracy on 100 Spider-representative questions",
+      "result": "92.8% component match",
+      "target": ">= 65%",
+      "met": true,
+      "exact_match_pct": 75.0,
+      "weakest_clause": [
+        "window",
+        20.0
+      ]
+    },
+    "E3_cost_reduction": {
+      "description": "Avg cost reduction on 30 anti-pattern SQL queries",
+      "result": "74.6% avg cost reduction",
+      "target": ">= 30%",
+      "met": true,
+      "dollar_savings": 86.24,
+      "detection_accuracy_pct": 76.7
+    }
+  },
+  "all_targets_met": true
+}

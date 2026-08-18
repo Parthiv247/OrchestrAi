@@ -1,0 +1,47 @@
+services:
+  # ── FastAPI Backend ──────────────────────────────────────────────────────────
+  - type: web
+    name: orchestrai-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    envVars:
+      - key: APP_ENV
+        value: development
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: orchestrai-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: orchestrai-db
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: orchestrai-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: orchestrai-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: orchestrai-db
+          property: password
+      - key: GROQ_API_KEY
+        sync: false   # set manually in Render dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false   # generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      - key: CORS_ORIGINS
+        sync: false   # set to your Vercel URL e.g. https://orchestrai.vercel.app
+    healthCheckPath: /health
+
+  # ── PostgreSQL Database ──────────────────────────────────────────────────────
+databases:
+  - name: orchestrai-db
+    plan: free
+    databaseName: orchestrai
+    user: admin

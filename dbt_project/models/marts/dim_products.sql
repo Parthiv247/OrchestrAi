@@ -1,0 +1,1 @@
+SELECT DISTINCT product_name AS product_id, product_name AS product_name, category AS product_category FROM marts.stg_ecommerce_orders LIMIT 100
