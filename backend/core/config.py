@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     langsmith_project: str = Field(default="orchestrai", env="LANGSMITH_PROJECT")
     langchain_tracing_v2: str = Field(default="true", env="LANGCHAIN_TRACING_V2")
 
-    # Database
+    # Database — set DATABASE_URL for production (Railway/Supabase), or individual vars for local Docker
+    database_url_override: str = Field(default="", env="DATABASE_URL")
     postgres_host: str = Field(default="localhost", env="POSTGRES_HOST")
     postgres_port: int = Field(default=5432, env="POSTGRES_PORT")
     postgres_db: str = Field(default="orchestrai", env="POSTGRES_DB")
@@ -22,6 +23,14 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        if self.database_url_override:
+            # Replace postgres:// or postgresql:// with asyncpg driver
+            url = self.database_url_override
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            elif url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            return url
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -29,6 +38,13 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
+        if self.database_url_override:
+            url = self.database_url_override
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            elif url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+            return url
         return (
             f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
