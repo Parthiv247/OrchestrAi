@@ -57,5 +57,5 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_URL: https://placeholder.up.railway.app
+          NEXT_PUBLIC_API_URL: https://orchestrai-production-f4af.up.railway.app
         run: npm run build
