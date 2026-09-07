@@ -1,0 +1,79 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OrchestrAI icon">
+  <title>OrchestrAI</title>
+  <desc>Six autonomous agent nodes orbiting a central hub, enclosed in a broken ring bridged by an emerald self-healing arc.</desc>
+  <defs>
+    <!-- Primary mark gradient: sky to violet, in user space so every element picks up its local hue -->
+    <linearGradient id="gMark" gradientUnits="userSpaceOnUse" x1="18" y1="18" x2="102" y2="102">
+      <stop offset="0" stop-color="#0EA5E9"/>
+      <stop offset="0.55" stop-color="#4F7DF3"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <!-- Healing arc gradient: emerald into sky -->
+    <linearGradient id="gHeal" gradientUnits="userSpaceOnUse" x1="86" y1="16" x2="104" y2="34">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <!-- App-icon background -->
+    <radialGradient id="gBg" cx="0.32" cy="0.22" r="1.1">
+      <stop offset="0" stop-color="#14304F"/>
+      <stop offset="0.6" stop-color="#0D2440"/>
+      <stop offset="1" stop-color="#0B1E35"/>
+    </radialGradient>
+    <!-- Soft glow -->
+    <filter id="fGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="fGlowSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="0" y="0" width="120" height="120" rx="27" fill="url(#gBg)"/>
+  <rect x="0.75" y="0.75" width="118.5" height="118.5" rx="26.25" fill="none" stroke="#F0F7FF" stroke-opacity="0.06" stroke-width="1.5"/>
+
+  <!-- Orbital ring: the O, broken at 20째-70째 (top-right) -->
+  <path d="M 77.10 13.02 A 50 50 0 1 0 106.98 42.90"
+        fill="none" stroke="url(#gMark)" stroke-width="5.5" stroke-linecap="round"/>
+
+  <!-- Self-healing arc: detached emerald segment closing the ring -->
+  <path d="M 88.68 19.04 A 50 50 0 0 1 100.96 31.32"
+        fill="none" stroke="url(#gHeal)" stroke-width="5.5" stroke-linecap="round" filter="url(#fGlowSoft)"/>
+
+  <!-- Faint mesh: hexagon linking the six agents -->
+  <path d="M 90 60 L 75 34.02 L 45 34.02 L 30 60 L 45 85.98 L 75 85.98 Z"
+        fill="none" stroke="url(#gMark)" stroke-width="1.5" stroke-opacity="0.22" stroke-linejoin="round"/>
+
+  <!-- Spokes: hub to each agent -->
+  <g stroke="url(#gMark)" stroke-width="3" stroke-linecap="round">
+    <line x1="73.50" y1="60"    x2="83.00" y2="60"/>
+    <line x1="66.75" y1="48.31" x2="71.50" y2="40.08"/>
+    <line x1="53.25" y1="48.31" x2="48.50" y2="40.08"/>
+    <line x1="46.50" y1="60"    x2="37.00" y2="60"/>
+    <line x1="53.25" y1="71.69" x2="48.50" y2="79.92"/>
+    <line x1="66.75" y1="71.69" x2="71.50" y2="79.92"/>
+  </g>
+
+  <!-- Central hub -->
+  <circle cx="60" cy="60" r="10" fill="none" stroke="url(#gMark)" stroke-width="4"/>
+  <circle cx="60" cy="60" r="2.4" fill="#F0F7FF"/>
+
+  <!-- Agent nodes -->
+  <g fill="url(#gMark)">
+    <circle cx="90" cy="60"    r="5.5"/>
+    <circle cx="45" cy="34.02" r="5.5"/>
+    <circle cx="30" cy="60"    r="5.5"/>
+    <circle cx="45" cy="85.98" r="5.5"/>
+    <circle cx="75" cy="85.98" r="5.5"/>
+  </g>
+  <!-- The healing agent: emerald, aligned with the ring's mended gap -->
+  <circle cx="75" cy="34.02" r="6" fill="#10B981" filter="url(#fGlow)"/>
+</svg>
