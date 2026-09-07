@@ -743,7 +743,7 @@ export default function QualityPage() {
               <Scan size={36} className="mx-auto mb-3" style={{ color: 'hsl(var(--muted-foreground))' }} />
               <p className="text-sm text-white font-medium mb-1">No PII scan results yet</p>
               <p className="text-xs mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                Click "Run PII Scan" to scan all database columns for personally identifiable information.
+                Click &quot;Run PII Scan&quot; to scan all database columns for personally identifiable information.
               </p>
               <button onClick={runPiiScan} disabled={piiScanning}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white mx-auto hover:opacity-90"
