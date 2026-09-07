@@ -10,14 +10,20 @@ config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-# Override sqlalchemy.url from environment variables so Docker/Railway work correctly
-# (alembic.ini has a hardcoded localhost fallback, but env vars win here)
-_pg_host = os.getenv("POSTGRES_HOST", "localhost")
-_pg_port = os.getenv("POSTGRES_PORT", "5432")
-_pg_db   = os.getenv("POSTGRES_DB", "orchestrai")
-_pg_user = os.getenv("POSTGRES_USER", "admin")
-_pg_pass = os.getenv("POSTGRES_PASSWORD", "orchestrai_secret")
-_db_url = f"postgresql+psycopg2://{_pg_user}:{_pg_pass}@{_pg_host}:{_pg_port}/{_pg_db}"
+# Override sqlalchemy.url — DATABASE_URL wins (Railway/Supabase), else individual POSTGRES_* vars
+_raw = os.getenv("DATABASE_URL", "")
+if _raw:
+    # Normalize to psycopg2 driver (asyncpg not supported by alembic)
+    _db_url = _raw.replace("postgresql+asyncpg://", "postgresql+psycopg2://") \
+                   .replace("postgres://", "postgresql+psycopg2://") \
+                   .replace("postgresql://", "postgresql+psycopg2://")
+else:
+    _pg_host = os.getenv("POSTGRES_HOST", "localhost")
+    _pg_port = os.getenv("POSTGRES_PORT", "5432")
+    _pg_db   = os.getenv("POSTGRES_DB", "orchestrai")
+    _pg_user = os.getenv("POSTGRES_USER", "admin")
+    _pg_pass = os.getenv("POSTGRES_PASSWORD", "orchestrai_secret")
+    _db_url = f"postgresql+psycopg2://{_pg_user}:{_pg_pass}@{_pg_host}:{_pg_port}/{_pg_db}"
 config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata

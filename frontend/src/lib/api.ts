@@ -5,11 +5,9 @@ const api = axios.create({
   timeout: 30000,
 })
 
-// Add X-Dev-Mode header in non-production environments for auth bypass
+// Add X-Dev-Mode header for demo/portfolio mode — backend checks APP_ENV before honoring it
 api.interceptors.request.use((config) => {
-  if (process.env.NODE_ENV !== 'production') {
-    config.headers['X-Dev-Mode'] = 'true'
-  }
+  config.headers['X-Dev-Mode'] = 'true'
   return config
 })
 

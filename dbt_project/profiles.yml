@@ -3,6 +3,7 @@ orchestrai:
   outputs:
     dev:
       type: postgres
+      # DATABASE_URL wins in production (Railway/Supabase); fall back to individual vars for local Docker
       host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
       user: "{{ env_var('POSTGRES_USER', 'admin') }}"
       password: "{{ env_var('POSTGRES_PASSWORD', 'orchestrai_secret') }}"

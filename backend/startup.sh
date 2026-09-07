@@ -5,6 +5,19 @@ set -e
 
 echo "=== OrchestrAI Backend Starting ==="
 
+# ── Parse DATABASE_URL if set (Railway/Supabase production) ───────────────────
+if [ -n "$DATABASE_URL" ]; then
+  echo "[0/4] DATABASE_URL detected — parsing for POSTGRES_* vars..."
+  # Strip driver prefix (postgresql+asyncpg:// → postgresql://)
+  _RAW_URL=$(echo "$DATABASE_URL" | sed 's|postgresql+[^:]*://|postgresql://|')
+  export POSTGRES_USER=$(echo "$_RAW_URL" | sed 's|postgresql://||' | cut -d: -f1)
+  export POSTGRES_PASSWORD=$(echo "$_RAW_URL" | sed 's|.*://[^:]*:||' | cut -d@ -f1)
+  export POSTGRES_HOST=$(echo "$_RAW_URL" | sed 's|.*@||' | cut -d: -f1)
+  export POSTGRES_PORT=$(echo "$_RAW_URL" | sed 's|.*@[^:]*:||' | cut -d/ -f1)
+  export POSTGRES_DB=$(echo "$_RAW_URL" | sed 's|.*/||' | cut -d? -f1)
+  echo "  Host=$POSTGRES_HOST Port=$POSTGRES_PORT DB=$POSTGRES_DB User=$POSTGRES_USER"
+fi
+
 # ── 1. Wait for PostgreSQL ─────────────────────────────────────────────────────
 echo "[1/4] Waiting for PostgreSQL..."
 RETRIES=30
@@ -17,18 +30,20 @@ try:
         dbname=os.getenv('POSTGRES_DB','orchestrai'),
         user=os.getenv('POSTGRES_USER','admin'),
         password=os.getenv('POSTGRES_PASSWORD','orchestrai_secret'),
-        connect_timeout=3
+        connect_timeout=5
     ).close()
     sys.exit(0)
-except: sys.exit(1)
-" 2>/dev/null; do
+except Exception as e:
+    print(f'  DB not ready: {e}', flush=True)
+    sys.exit(1)
+" 2>&1; do
   RETRIES=$((RETRIES - 1))
   if [ $RETRIES -le 0 ]; then
     echo "ERROR: PostgreSQL not ready after 30 attempts — starting anyway"
     break
   fi
-  echo "  PostgreSQL not ready, retrying in 2s... ($RETRIES left)"
-  sleep 2
+  echo "  Retrying in 3s... ($RETRIES left)"
+  sleep 3
 done
 echo "  PostgreSQL ready."
 
