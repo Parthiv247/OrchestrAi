@@ -29,7 +29,7 @@ from .deployment_agent import DeploymentAgent
 
 logger = logging.getLogger(__name__)
 
-SANDBOX_CONFIDENCE_THRESHOLD = 0.75  # must pass 9/12 tests to proceed
+SANDBOX_CONFIDENCE_THRESHOLD = 0.75  # static fallback — overridden per-anomaly by LearningAgent
 
 
 class HealingOrchestrator:
@@ -90,7 +90,25 @@ class HealingOrchestrator:
 
     def _route_sandbox_passed(self, state: HealingAgentState) -> str:
         score = state.get("confidence_score") or 0.0
-        return "passed" if score >= SANDBOX_CONFIDENCE_THRESHOLD else "failed"
+        anomaly_type = state.get("anomaly_type") or ""
+        threshold = self._learned_threshold(anomaly_type)
+        logger.info(
+            "_route_sandbox_passed: score=%.3f threshold=%.3f anomaly=%s",
+            score, threshold, anomaly_type,
+        )
+        return "passed" if score >= threshold else "failed"
+
+    def _learned_threshold(self, anomaly_type: str) -> float:
+        """
+        Fetch per-anomaly-type confidence threshold from LearningAgent.
+        Falls back to SANDBOX_CONFIDENCE_THRESHOLD when fewer than 3 historical fixes exist.
+        """
+        try:
+            from ..learning.learning_agent import LearningAgent
+            return LearningAgent().learned_threshold_for_anomaly(anomaly_type, SANDBOX_CONFIDENCE_THRESHOLD)
+        except Exception as e:
+            logger.warning("Could not fetch learned threshold, using default: %s", e)
+            return SANDBOX_CONFIDENCE_THRESHOLD
 
     def _route_approved(self, state: HealingAgentState) -> str:
         status = state.get("approval_status") or "pending"
@@ -337,18 +355,68 @@ class HealingOrchestrator:
             logger.warning("_update_incident_sandbox failed: %s", e)
 
     def _notify(self, subject: str, body: str, severity: str = "info"):
-        """Best-effort notification dispatch — never blocks the healing pipeline."""
+        """
+        Best-effort notification dispatch — never blocks the healing pipeline.
+
+        Channel routing:
+          - All events  → Slack (if SLACK_WEBHOOK_URL or notification_config.slack_webhook_url set)
+          - critical / warning events → PagerDuty (if PAGERDUTY_KEY or notification_config.pagerduty_key set)
+        """
+        channels = ["slack"]
+        if severity in ("critical", "warning"):
+            channels.append("pagerduty")
+
         try:
-            import httpx
+            import httpx as _httpx
             api_base = os.getenv("INTERNAL_API_URL", "http://localhost:8000")
-            httpx.post(
+            _httpx.post(
                 f"{api_base}/api/notifications/dispatch",
-                json={"subject": subject, "body": body, "severity": severity, "channels": ["slack"]},
-                timeout=3,
+                json={"subject": subject, "body": body, "severity": severity, "channels": channels},
+                timeout=5,
                 headers={"X-Dev-Mode": "true"},
             )
         except Exception as e:
-            logger.warning("Notification dispatch skipped: %s", e)
+            # Fallback: call Slack + PagerDuty directly if API is unavailable
+            self._direct_notify(subject, body, severity, channels, error=str(e))
+
+    def _direct_notify(self, subject: str, body: str, severity: str, channels: list, error: str = ""):
+        """Direct webhook dispatch — used when the notifications API is unreachable."""
+        import httpx as _httpx
+
+        if "slack" in channels:
+            slack_url = os.getenv("SLACK_WEBHOOK_URL", "")
+            if slack_url:
+                try:
+                    color_map = {"critical": "#ef4444", "warning": "#f59e0b", "info": "#3b82f6", "success": "#22c55e"}
+                    _httpx.post(slack_url, json={
+                        "attachments": [{
+                            "color": color_map.get(severity, "#3b82f6"),
+                            "title": f"🤖 OrchestrAI — {subject}",
+                            "text": body,
+                            "footer": "OrchestrAI Alerts",
+                        }]
+                    }, timeout=5)
+                except Exception as se:
+                    logger.warning("Direct Slack dispatch failed: %s", se)
+            else:
+                logger.warning("Notification dispatch skipped (API error: %s, no SLACK_WEBHOOK_URL)", error)
+
+        if "pagerduty" in channels:
+            pd_key = os.getenv("PAGERDUTY_KEY", "")
+            if pd_key:
+                try:
+                    _httpx.post("https://events.pagerduty.com/v2/enqueue", json={
+                        "routing_key": pd_key,
+                        "event_action": "trigger",
+                        "payload": {
+                            "summary": f"OrchestrAI: {subject}",
+                            "severity": "critical" if severity == "critical" else "warning",
+                            "source": "OrchestrAI",
+                            "custom_details": {"message": body},
+                        }
+                    }, timeout=5)
+                except Exception as pe:
+                    logger.warning("Direct PagerDuty dispatch failed: %s", pe)
 
     def _log(self, state: HealingAgentState, msg: str):
         ts = datetime.utcnow().strftime("%H:%M:%S")

@@ -94,9 +94,24 @@ class DuckDBWarehouse:
                 loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Watermark table — tracks the last successfully loaded value per pipeline/table.
+        # Used by incremental ETL to fetch only new/updated rows (replaces full-table reload).
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS etl_watermarks (
+                pipeline_name VARCHAR NOT NULL,
+                table_name    VARCHAR NOT NULL,
+                watermark_col VARCHAR NOT NULL,
+                watermark_val VARCHAR NOT NULL,
+                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (pipeline_name, table_name)
+            )
+        """)
 
     def insert_batch(self, table: str, records: List[Dict]) -> int:
-        """Insert a batch of records. Returns count inserted."""
+        """
+        Full-replace insert — used for metrics/logging tables where dedup by id is fine.
+        For business data tables (nyc_taxi_trips, ecommerce_orders), prefer upsert_batch.
+        """
         if not records:
             return 0
         df = pd.DataFrame(records)
@@ -106,6 +121,79 @@ class DuckDBWarehouse:
         except Exception as e:
             logger.error("DuckDB insert_batch failed: %s", e)
             return 0
+
+    def upsert_batch(self, table: str, records: List[Dict], unique_key: str) -> int:
+        """
+        Incremental upsert — only inserts new rows or updates existing ones by unique_key.
+
+        Strategy:
+          1. Load incoming records into a temp view.
+          2. DELETE matching keys from target (DuckDB doesn't support MERGE directly).
+          3. INSERT the new/updated rows.
+
+        This ensures the warehouse table is always current without blowing away the whole table
+        on every pipeline run. Only truly new or changed rows are written.
+
+        Returns: number of rows upserted.
+        """
+        if not records:
+            return 0
+        df = pd.DataFrame(records)
+        if unique_key not in df.columns:
+            logger.warning("upsert_batch: unique_key '%s' not in records — falling back to insert_batch", unique_key)
+            return self.insert_batch(table, records)
+        try:
+            # Register temp view for the incoming batch
+            self._conn.register("_upsert_staging", df)
+            # Remove any rows in target that match an incoming key (UPDATE = DELETE + INSERT)
+            self._conn.execute(f"""
+                DELETE FROM {table}
+                WHERE {unique_key} IN (SELECT {unique_key} FROM _upsert_staging)
+            """)
+            # Insert all incoming rows (new + updated)
+            self._conn.execute(f"INSERT INTO {table} SELECT * FROM _upsert_staging")
+            self._conn.unregister("_upsert_staging")
+            logger.debug("upsert_batch: %d rows → %s", len(records), table)
+            return len(records)
+        except Exception as e:
+            logger.error("DuckDB upsert_batch failed for %s: %s", table, e)
+            return 0
+
+    # ── Watermark helpers ──────────────────────────────────────────────────────
+
+    def get_watermark(self, pipeline_name: str, table_name: str) -> str | None:
+        """
+        Return the last watermark value for this pipeline+table pair.
+        The watermark is typically an ISO datetime string (MAX(updated_at) of last run).
+        Returns None when no previous run has been recorded.
+        """
+        try:
+            row = self._conn.execute("""
+                SELECT watermark_val FROM etl_watermarks
+                WHERE pipeline_name = ? AND table_name = ?
+            """, [pipeline_name, table_name]).fetchone()
+            return row[0] if row else None
+        except Exception as e:
+            logger.warning("get_watermark failed: %s", e)
+            return None
+
+    def set_watermark(self, pipeline_name: str, table_name: str,
+                      watermark_col: str, watermark_val: str) -> None:
+        """
+        Persist the current high-water mark so the next run fetches only newer rows.
+        watermark_val should be the MAX(watermark_col) of the records just written.
+        """
+        try:
+            self._conn.execute("""
+                INSERT INTO etl_watermarks (pipeline_name, table_name, watermark_col, watermark_val, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (pipeline_name, table_name)
+                DO UPDATE SET watermark_col = excluded.watermark_col,
+                              watermark_val = excluded.watermark_val,
+                              updated_at    = CURRENT_TIMESTAMP
+            """, [pipeline_name, table_name, watermark_col, watermark_val])
+        except Exception as e:
+            logger.warning("set_watermark failed: %s", e)
 
     def get_table_count(self, table: str) -> int:
         try:

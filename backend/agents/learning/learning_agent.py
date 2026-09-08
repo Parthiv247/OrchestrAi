@@ -314,6 +314,49 @@ class LearningAgent:
             logger.warning("mttr_by_anomaly failed: %s", e)
             return {}
 
+    def learned_threshold_for_anomaly(self, anomaly_type: str,
+                                       default: float = 0.75) -> float:
+        """
+        Derive a per-anomaly-type sandbox confidence threshold from historical outcomes.
+
+        Logic:
+          - Collect all non-deprecated fixes for this anomaly_type.
+          - For each, compute an implied threshold: success_count / (success_count + failure_count).
+          - Return the weighted average, clamped to [0.60, 0.95].
+          - Falls back to `default` (0.75) when fewer than 3 data points exist.
+
+        This replaces the static SANDBOX_CONFIDENCE_THRESHOLD = 0.75 in the orchestrator
+        so the routing adapts as the platform accumulates incident history.
+        """
+        if self._chroma is None:
+            return default
+        try:
+            col     = self._collection("pipeline_fixes")
+            results = col.get(include=["metadatas"])
+            metas   = results.get("metadatas") or []
+            scores: List[float] = []
+            for meta in metas:
+                if meta.get("deprecated") == "true":
+                    continue
+                if meta.get("anomaly_type", "") != anomaly_type:
+                    continue
+                succ = int(meta.get("success_count", 0) or 0)
+                fail = int(meta.get("failure_count", 0) or 0)
+                total = succ + fail
+                if total == 0:
+                    continue
+                # implied threshold: fixes with high success need a lower bar to proceed;
+                # fixes with many failures raise the bar to protect production.
+                implied = 0.60 + 0.35 * (succ / total)   # range [0.60, 0.95]
+                scores.append(implied)
+            if len(scores) < 3:
+                return default
+            learned = round(sum(scores) / len(scores), 3)
+            return max(0.60, min(0.95, learned))
+        except Exception as e:
+            logger.warning("learned_threshold_for_anomaly failed: %s", e)
+            return default
+
     def fix_success_rate(self) -> Dict[str, Any]:
         """Overall fix success rate and per-anomaly breakdown."""
         if self._chroma is None:

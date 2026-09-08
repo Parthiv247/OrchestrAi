@@ -44,7 +44,11 @@ SCALER_PATH     = Path(__file__).parent.parent.parent.parent / "ml" / "scaler.pk
 CLASSIFIER_PATH = Path(__file__).parent.parent.parent.parent / "ml" / "anomaly_classifier.pkl"
 LABEL_ENCODER_PATH = Path(__file__).parent.parent.parent.parent / "ml" / "label_encoder.pkl"
 
-PIPELINE_NAMES = ["ingest_nyc_taxi", "ingest_ecommerce", "dbt_run", "kafka_consumer"]
+PIPELINE_NAMES = [
+    "ingest_nyc_taxi", "ingest_ecommerce", "dbt_run", "kafka_consumer",
+    # Streaming pipelines
+    "flink_job", "spark_streaming",
+]
 
 # ── Thresholds ─────────────────────────────────────────────────────────────────
 ROW_DROP_THRESHOLD     = 0.20   # >20% drop vs 7-day avg
@@ -63,7 +67,15 @@ PIPELINE_SLA: Dict[str, int] = {
     "ingest_ecommerce": 900,    # 15 min
     "dbt_run":          3600,   # 60 min
     "kafka_consumer":   300,    # 5 min
+    # Streaming pipelines — measured as micro-batch latency, not total run duration
+    "flink_job":        60,     # 60s max per checkpoint interval
+    "spark_streaming":  30,     # 30s max per micro-batch
 }
+
+# Streaming-specific thresholds
+FLINK_CHECKPOINT_TIMEOUT_SECONDS = 120    # Flink checkpoint > 2 min = anomaly
+SPARK_MICRO_BATCH_DELAY_SECONDS  = 60     # Spark micro-batch > 1 min = anomaly
+STREAMING_BACKLOG_ROWS           = 100_000  # Unprocessed events backlog > 100K = CDC_LAG
 
 # Multi-DB error signature → anomaly type mapping
 DB_ERROR_SIGNATURES: List[Tuple[str, str]] = [
@@ -110,6 +122,29 @@ DB_ERROR_SIGNATURES: List[Tuple[str, str]] = [
     ("offset out of range",                   "CHECKPOINT_FAILURE"),
     ("consumer group rebalance",              "INCREMENTAL_SYNC_FAILURE"),
     ("transaction marker",                    "DATA_TYPE_MISMATCH"),
+    # Apache Flink
+    ("job manager lost",                      "ZERO_LOAD"),
+    ("task manager heartbeat timeout",        "ZERO_LOAD"),
+    ("checkpoint failed",                     "CHECKPOINT_FAILURE"),
+    ("checkpoint timeout exceeded",           "CHECKPOINT_FAILURE"),
+    ("state backend restore failed",          "CHECKPOINT_FAILURE"),
+    ("savepoint could not be created",        "CHECKPOINT_FAILURE"),
+    ("back pressure",                         "PIPELINE_DELAY"),
+    ("watermark stalled",                     "CDC_LAG"),
+    ("late arriving event",                   "CDC_LAG"),
+    ("operator chaining failed",              "CONSECUTIVE_FAILURES"),
+    ("job vertex failed",                     "CONSECUTIVE_FAILURES"),
+    ("rocksdb compaction error",              "PIPELINE_DELAY"),
+    # Apache Spark Structured Streaming
+    ("stream query terminated with exception","CONSECUTIVE_FAILURES"),
+    ("micro-batch processing time exceeded",  "PIPELINE_DELAY"),
+    ("offset does not exist",                 "CHECKPOINT_FAILURE"),
+    ("streaming query stopped",               "ZERO_LOAD"),
+    ("state store key not found",             "INCREMENTAL_SYNC_FAILURE"),
+    ("trigger interval exceeded",             "PIPELINE_DELAY"),
+    ("executor lost",                         "CONSECUTIVE_FAILURES"),
+    ("driver crashed",                        "ZERO_LOAD"),
+    ("shuffle fetch failed",                  "PIPELINE_DELAY"),
     # Generic
     ("connection timed out",                  "ZERO_LOAD"),
     ("read timeout",                          "PIPELINE_DELAY"),
@@ -366,7 +401,20 @@ class MonitoringAgent:
             details.update(cascade)
             return self._make_state(pipeline_name, "CASCADING_FAILURE", details, str(latest.get("id", "")))
 
-        # ── 12. ML Isolation Forest check ────────────────────────────────────
+        # ── 12. Streaming-specific checks (Flink / Spark) ───────────────────────
+        if pipeline_name == "flink_job":
+            flink_issue = self._check_flink_health(cur, pipeline_name)
+            if flink_issue:
+                details.update(flink_issue.get("anomaly_details", {}))
+                return self._make_state(pipeline_name, flink_issue["anomaly_type"], details, str(latest.get("id", "")))
+
+        if pipeline_name == "spark_streaming":
+            spark_issue = self._check_spark_streaming_health(cur, pipeline_name)
+            if spark_issue:
+                details.update(spark_issue.get("anomaly_details", {}))
+                return self._make_state(pipeline_name, spark_issue["anomaly_type"], details, str(latest.get("id", "")))
+
+        # ── 13. ML Isolation Forest check ────────────────────────────────────
         if HAS_SKLEARN and self._model is not None:
             score = self.score_run(dict(latest))
             if score < ANOMALY_SCORE_THRESHOLD:
@@ -449,6 +497,105 @@ class MonitoringAgent:
         if yesterday > 0 and today == 0:
             return {"today_records": today, "yesterday_records": yesterday,
                     "sync_gap": "No records loaded today vs yesterday"}
+        return None
+
+    # ── Streaming-specific checks ──────────────────────────────────────────────
+
+    def _check_flink_health(self, cur, pipeline_name: str) -> Optional[Dict]:
+        """
+        Flink-specific checks:
+          - Checkpoint timeout: latest completed_at - started_at > FLINK_CHECKPOINT_TIMEOUT_SECONDS
+          - Backlog: error_message contains 'back pressure' or 'watermark stalled'
+        """
+        cur.execute("""
+            SELECT
+                EXTRACT(EPOCH FROM (completed_at - started_at)) AS duration,
+                error_message,
+                status
+            FROM pipeline_runs
+            WHERE pipeline_name = %s
+            ORDER BY started_at DESC LIMIT 1
+        """, (pipeline_name,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        duration, error_msg, status = row
+
+        if status == "failed" and error_msg:
+            atype = self.classify_error_message(str(error_msg).lower())
+            if atype:
+                return {
+                    "anomaly_type": atype,
+                    "anomaly_details": {
+                        "engine": "flink",
+                        "error_message": str(error_msg)[:300],
+                        "duration_seconds": float(duration or 0),
+                    }
+                }
+
+        if duration and float(duration) > FLINK_CHECKPOINT_TIMEOUT_SECONDS:
+            return {
+                "anomaly_type": "CHECKPOINT_FAILURE",
+                "anomaly_details": {
+                    "engine": "flink",
+                    "checkpoint_duration_seconds": float(duration),
+                    "threshold_seconds": FLINK_CHECKPOINT_TIMEOUT_SECONDS,
+                }
+            }
+        return None
+
+    def _check_spark_streaming_health(self, cur, pipeline_name: str) -> Optional[Dict]:
+        """
+        Spark Structured Streaming checks:
+          - Micro-batch delay: if last batch took > SPARK_MICRO_BATCH_DELAY_SECONDS
+          - Trigger overrun: error_message contains known Spark streaming signals
+          - Event backlog: if records_loaded dropped to 0 while pipeline is still running
+        """
+        cur.execute("""
+            SELECT
+                EXTRACT(EPOCH FROM (completed_at - started_at)) AS batch_duration,
+                records_loaded,
+                error_message,
+                status
+            FROM pipeline_runs
+            WHERE pipeline_name = %s
+            ORDER BY started_at DESC LIMIT 1
+        """, (pipeline_name,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        batch_duration, records_loaded, error_msg, status = row
+
+        if status == "failed" and error_msg:
+            atype = self.classify_error_message(str(error_msg).lower())
+            if atype:
+                return {
+                    "anomaly_type": atype,
+                    "anomaly_details": {
+                        "engine": "spark_streaming",
+                        "error_message": str(error_msg)[:300],
+                    }
+                }
+
+        if batch_duration and float(batch_duration) > SPARK_MICRO_BATCH_DELAY_SECONDS:
+            return {
+                "anomaly_type": "PIPELINE_DELAY",
+                "anomaly_details": {
+                    "engine": "spark_streaming",
+                    "micro_batch_seconds": float(batch_duration),
+                    "threshold_seconds": SPARK_MICRO_BATCH_DELAY_SECONDS,
+                }
+            }
+
+        if status == "success" and (records_loaded or 0) == 0:
+            return {
+                "anomaly_type": "ZERO_LOAD",
+                "anomaly_details": {
+                    "engine": "spark_streaming",
+                    "records_loaded": 0,
+                    "note": "Spark micro-batch produced zero records — possible backlog or source disconnect",
+                }
+            }
         return None
 
     def _check_cascading_failure(self, cur, pipeline_name: str) -> Optional[Dict]:

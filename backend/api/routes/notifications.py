@@ -34,6 +34,26 @@ router = APIRouter(prefix="/api/notifications")
 
 def _ensure_tables(conn):
     cur = conn.cursor()
+    # notification_config: one row (id='default') holds all webhook credentials.
+    # Created here so it exists from first dispatch even before the settings page is visited.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notification_config (
+            id TEXT PRIMARY KEY DEFAULT 'default',
+            slack_webhook_url   TEXT DEFAULT '',
+            pagerduty_key       TEXT DEFAULT '',
+            email_from          TEXT DEFAULT '',
+            email_smtp_host     TEXT DEFAULT '',
+            email_smtp_port     INTEGER DEFAULT 587,
+            email_smtp_user     TEXT DEFAULT '',
+            email_smtp_pass     TEXT DEFAULT '',
+            updated_at          TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        INSERT INTO notification_config (id)
+        VALUES ('default')
+        ON CONFLICT (id) DO NOTHING
+    """)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS alert_rules (
             id TEXT PRIMARY KEY,
