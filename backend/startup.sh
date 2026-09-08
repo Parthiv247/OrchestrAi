@@ -70,10 +70,15 @@ try:
         connect_timeout=5
     )
     cur = conn.cursor()
+    # Require BOTH source tables with data — partial loads cause cascading dbt errors
     cur.execute(\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='raw' AND table_name IN ('ecommerce_orders','nyc_taxi_trips')\")
-    count = cur.fetchone()[0]
+    table_count = cur.fetchone()[0]
+    rows_ok = False
+    if table_count >= 2:
+        cur.execute(\"SELECT COUNT(*) FROM raw.ecommerce_orders\")
+        rows_ok = cur.fetchone()[0] > 0
     conn.close()
-    print('yes' if count >= 1 else 'no')
+    print('yes' if (table_count >= 2 and rows_ok) else 'no')
 except Exception as e:
     print('no')
 " 2>/dev/null)

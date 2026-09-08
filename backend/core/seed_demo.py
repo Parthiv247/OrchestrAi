@@ -376,7 +376,7 @@ def seed_if_empty() -> None:
             pass
 
     # Healing outcomes uses its own connection
-    _seed_healing_outcomes(None)
+    _seed_healing_outcomes()
 
 
 if __name__ == "__main__":

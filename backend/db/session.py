@@ -2,26 +2,34 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from typing import AsyncGenerator, Generator
+import os
 from ..core.config import get_settings
 
 settings = get_settings()
 
+# Supabase (and most hosted Postgres) require SSL. asyncpg needs ssl="require"
+# explicitly when connecting to a pooler / cloud host.
+_is_production = bool(os.getenv("DATABASE_URL", ""))
+_async_connect_args: dict = {"timeout": 5}
+if _is_production:
+    # asyncpg accepts ssl as a string or ssl.SSLContext
+    _async_connect_args["ssl"] = "require"
+
 # Async engine for FastAPI endpoints
-# connect_args timeout: fail fast if DB unreachable (don't block startup)
 async_engine = create_async_engine(
     settings.database_url,
     echo=False,
     pool_pre_ping=True,
-    connect_args={"timeout": 5},  # asyncpg: 5s connection timeout
+    connect_args=_async_connect_args,
 )
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
 
-# Sync engine for Alembic migrations
+# Sync engine for Alembic migrations (psycopg2 — handles SSL via sslmode param in URL)
 sync_engine = create_engine(
     settings.sync_database_url,
     echo=False,
     pool_pre_ping=True,
-    connect_args={"connect_timeout": 5},  # psycopg2: 5s connection timeout
+    connect_args={"connect_timeout": 5},
 )
 SyncSessionLocal = sessionmaker(bind=sync_engine, autocommit=False, autoflush=False)
 
