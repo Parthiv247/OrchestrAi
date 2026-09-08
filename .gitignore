@@ -64,3 +64,4 @@ dbt_project/logs/
 .coverage
 htmlcov/
 .pytest_cache/
+.claude/
