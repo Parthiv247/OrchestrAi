@@ -24,12 +24,20 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if self.database_url_override:
-            # Replace postgres:// or postgresql:// with asyncpg driver
             url = self.database_url_override
             if url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             elif url.startswith("postgres://"):
                 url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            # Supabase pooler requires SSL. asyncpg doesn't read sslmode from the
+            # query string so we strip it and rely on connect_args ssl="require"
+            # (set in db/session.py) — but also strip any conflicting sslmode param
+            # so the URL stays clean for asyncpg's URL parser.
+            if "?" in url:
+                # remove sslmode param if present; asyncpg handles SSL via connect_args
+                parts = url.split("?", 1)
+                params = "&".join(p for p in parts[1].split("&") if not p.startswith("sslmode"))
+                url = parts[0] + (f"?{params}" if params else "")
             return url
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"

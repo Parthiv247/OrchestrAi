@@ -3,9 +3,11 @@
 Revision ID: 004_healing_outcomes
 Revises: 0002
 Create Date: 2025-01-01
+
+NOTE: Uses raw SQL CREATE TABLE IF NOT EXISTS and DO $$ IF EXISTS for all
+DDL so this is fully idempotent and safe on any database state.
 """
 from alembic import op
-import sqlalchemy as sa
 
 revision = "004_healing_outcomes"
 down_revision = "0002"
@@ -13,37 +15,46 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade() -> None:
-    op.create_table(
-        "healing_outcomes",
-        sa.Column("id", sa.Integer(), autoincrement=True, primary_key=True),
-        sa.Column("incident_id", sa.String(100), nullable=False),
-        sa.Column("pipeline_name", sa.String(200), nullable=False),
-        sa.Column("anomaly_type", sa.String(100), nullable=False),
-        sa.Column("healing_strategy", sa.String(200), nullable=False),
-        sa.Column("fix_code_hash", sa.String(64), nullable=True),
-        sa.Column("outcome", sa.String(20), nullable=False),  # 'approved','rejected','auto_healed'
-        sa.Column("mttr_seconds", sa.Float(), nullable=True),  # time from detection to resolution
-        sa.Column("confidence_score", sa.Float(), nullable=True),
-        sa.Column("approved_by", sa.String(100), nullable=True),
-        sa.Column("detection_at", sa.DateTime(), nullable=True),
-        sa.Column("resolved_at", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
-    )
-    op.execute("CREATE INDEX IF NOT EXISTS idx_healing_outcomes_incident ON healing_outcomes(incident_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_healing_outcomes_anomaly ON healing_outcomes(anomaly_type)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_healing_outcomes_created ON healing_outcomes(created_at)")
+def _safe_alter(table: str, ddl: str) -> None:
+    op.execute(f"""
+        DO $$ BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = '{table}'
+            ) THEN
+                {ddl};
+            END IF;
+        END $$;
+    """)
 
-    # Add workspace_id to key tables for multi-tenancy
-    for table in ["pipelines", "incidents"]:
-        try:
-            op.add_column(
-                table,
-                sa.Column("workspace_id", sa.String(50), nullable=True, server_default="default"),
-            )
-        except Exception:
-            pass  # column may already exist
+
+def upgrade() -> None:
+    # Create healing_outcomes — idempotent
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS healing_outcomes (
+            id               SERIAL PRIMARY KEY,
+            incident_id      VARCHAR(100) NOT NULL,
+            pipeline_name    VARCHAR(200) NOT NULL,
+            anomaly_type     VARCHAR(100) NOT NULL,
+            healing_strategy VARCHAR(200) NOT NULL,
+            fix_code_hash    VARCHAR(64),
+            outcome          VARCHAR(20)  NOT NULL,
+            mttr_seconds     FLOAT,
+            confidence_score FLOAT,
+            approved_by      VARCHAR(100),
+            detection_at     TIMESTAMP,
+            resolved_at      TIMESTAMP DEFAULT NOW(),
+            created_at       TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_healing_outcomes_incident ON healing_outcomes(incident_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_healing_outcomes_anomaly  ON healing_outcomes(anomaly_type)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_healing_outcomes_created  ON healing_outcomes(created_at)")
+
+    # Add workspace_id to key tables — safe even when tables don't exist yet
+    _safe_alter("pipelines", "ALTER TABLE pipelines  ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(50) DEFAULT 'default'")
+    _safe_alter("incidents", "ALTER TABLE incidents  ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(50) DEFAULT 'default'")
 
 
 def downgrade() -> None:
-    op.drop_table("healing_outcomes")
+    op.execute("DROP TABLE IF EXISTS healing_outcomes")

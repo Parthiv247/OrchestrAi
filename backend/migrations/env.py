@@ -30,9 +30,7 @@ target_metadata = Base.metadata
 
 
 def include_object(object, name, type_, reflected, compare_to):
-    # Only manage tables defined in our ORM models. Ignore Airflow metadata
-    # tables, schema_registry, and anything in raw/staging/marts schemas — they
-    # share this database but are NOT owned by the app's migrations.
+    # Only manage tables defined in our ORM models. Ignore external tables.
     if type_ == "table" and name not in target_metadata.tables:
         return False
     return True
@@ -40,18 +38,33 @@ def include_object(object, name, type_, reflected, compare_to):
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata,
-                      literal_binds=True, include_object=include_object,
-                      include_schemas=False)
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        include_object=include_object,
+        include_schemas=False,
+        transaction_per_migration=True,  # each migration is isolated
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online():
-    connectable = engine_from_config(config.get_section(config.config_ini_section), prefix="sqlalchemy.", poolclass=pool.NullPool)
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata,
-                          include_object=include_object, include_schemas=False)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+            include_schemas=False,
+            transaction_per_migration=True,  # each migration gets its own transaction
+            # so a failure in one migration doesn't abort all subsequent ones
+        )
         with context.begin_transaction():
             context.run_migrations()
 
