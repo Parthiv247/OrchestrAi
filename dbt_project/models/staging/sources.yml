@@ -2,7 +2,6 @@ version: 2
 
 sources:
   - name: orchestrai
-    database: orchestrai
     schema: raw
     description: Raw ingested data for OrchestrAI — NYC Taxi + E-Commerce datasets
     tables:

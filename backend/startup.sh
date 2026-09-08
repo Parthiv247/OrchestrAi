@@ -56,9 +56,35 @@ cd /app
 # ── 3. dbt run ────────────────────────────────────────────────────────────────
 echo "[3/4] Running dbt transformations..."
 if [ -d "/app/dbt_project" ]; then
-  cd /app/dbt_project
-  dbt run --profiles-dir . --project-dir . --target dev 2>&1 | tail -20 || echo "WARNING: dbt run failed — mart tables may be missing"
-  cd /app
+  # Only run dbt if the raw source tables exist (they're loaded by ETL pipelines).
+  # On a fresh DB they won't exist yet — skip gracefully rather than printing 17 errors.
+  _RAW_TABLES_EXIST=$(python3 -c "
+import psycopg2, os
+try:
+    conn = psycopg2.connect(
+        host=os.getenv('POSTGRES_HOST','localhost'),
+        port=int(os.getenv('POSTGRES_PORT',5432)),
+        dbname=os.getenv('POSTGRES_DB','postgres'),
+        user=os.getenv('POSTGRES_USER','admin'),
+        password=os.getenv('POSTGRES_PASSWORD',''),
+        connect_timeout=5
+    )
+    cur = conn.cursor()
+    cur.execute(\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='raw' AND table_name IN ('ecommerce_orders','nyc_taxi_trips')\")
+    count = cur.fetchone()[0]
+    conn.close()
+    print('yes' if count >= 1 else 'no')
+except Exception as e:
+    print('no')
+" 2>/dev/null)
+  if [ "$_RAW_TABLES_EXIST" = "yes" ]; then
+    echo "  Raw source tables found — running dbt..."
+    cd /app/dbt_project
+    dbt run --profiles-dir . --project-dir . --target dev 2>&1 | tail -20 || echo "WARNING: dbt run failed — mart tables may be missing"
+    cd /app
+  else
+    echo "  Raw source tables not yet loaded — skipping dbt (will run automatically after first ETL pipeline executes)"
+  fi
 else
   echo "  dbt_project not found — skipping"
 fi
