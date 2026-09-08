@@ -9,7 +9,7 @@ import {
   LayoutDashboard, GitBranch, ShieldCheck, Zap, Database,
   MessageSquare, Activity, Settings, Share2, Plug, Mail,
   ChevronLeft, ChevronRight, ClipboardCheck, TrendingUp,
-  PanelLeftClose, PanelLeft,
+  PanelLeftClose, PanelLeft, AlertTriangle,
 } from 'lucide-react'
 
 interface NavItem { icon: LucideIcon; label: string; href: string; badge?: string }
@@ -30,6 +30,7 @@ const SECTIONS: NavSection[] = [
       { icon: ShieldCheck,    label: 'Approvals',     href: '/approvals', badge: 'live' },
       { icon: Activity,       label: 'Observability', href: '/observability' },
       { icon: ClipboardCheck, label: 'Data Quality',  href: '/quality' },
+      { icon: AlertTriangle,  label: 'Error Catalog', href: '/errors' },
     ],
   },
   {
