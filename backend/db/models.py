@@ -159,13 +159,16 @@ class Pipeline(Base):
     tenant_id = Column(String, nullable=True)
     dag_id = Column(String(255), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
     source_type = Column(String(100))
     source_config = Column(JSON)
     dest_type = Column(String(100))
     dest_config = Column(JSON)
+    destination_type = Column(String(100), nullable=True)
     schedule = Column(String(100))
     status = Column(String(50), default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class PipelineRun(Base):
