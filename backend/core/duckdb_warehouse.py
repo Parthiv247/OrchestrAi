@@ -7,7 +7,7 @@ import duckdb
 import os
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict
 import pandas as pd
 
 logger = logging.getLogger(__name__)

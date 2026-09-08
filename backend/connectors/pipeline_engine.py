@@ -1,9 +1,9 @@
 """PipelineEngine — orchestrates extract → transform → load for a single pipeline run."""
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from .base import BaseSourceConnector, BaseDestinationConnector, IngestRecord, PipelineStats
+from .base import IngestRecord, PipelineStats
 from .registry import get_source, get_destination
 
 

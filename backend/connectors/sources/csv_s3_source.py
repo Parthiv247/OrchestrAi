@@ -1,5 +1,4 @@
 """CSV / S3 Source Connector — local file, S3, or HTTP URL; CSV/Excel/Parquet; returns DataFrame."""
-import os
 from typing import Dict, List, Optional
 
 import pandas as pd

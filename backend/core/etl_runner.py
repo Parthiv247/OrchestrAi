@@ -13,8 +13,8 @@ import logging
 import time
 import uuid
 import random
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Any, Optional
 import pandas as pd
 
 logger = logging.getLogger(__name__)

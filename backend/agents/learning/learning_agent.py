@@ -10,13 +10,12 @@ LearningAgent — ChromaDB RAG for pipeline fixes and NL queries.
   - Feedback loop: deprecated fixes (2+ failures) are soft-deleted from cache
   - On-disk persistent ChromaDB with graceful HTTP fallback
 """
-import json
 import logging
 import os
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

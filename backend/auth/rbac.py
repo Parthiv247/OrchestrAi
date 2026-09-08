@@ -1,6 +1,5 @@
 from enum import Enum
 from typing import List
-from functools import wraps
 from fastapi import HTTPException, status, Depends
 from .jwt_handler import get_current_user
 

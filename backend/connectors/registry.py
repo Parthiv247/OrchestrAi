@@ -1,5 +1,5 @@
 """Connector registry — maps connector_id strings to connector classes."""
-from typing import Dict, Type
+from typing import Dict
 
 from .sources.rest_api_source import RestAPISource
 from .sources.postgresql_source import PostgreSQLSource
