@@ -530,13 +530,32 @@ def list_connections():
 #  Real incremental sync, retry with exponential backoff, dead letter queue
 # ══════════════════════════════════════════════════════════════════════════════
 
-DB_CONFIG_ETL = {
-    "host":     os.getenv("POSTGRES_HOST", "localhost"),
-    "port":     int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname":   os.getenv("POSTGRES_DB", "orchestrai"),
-    "user":     os.getenv("POSTGRES_USER", "admin"),
-    "password": os.getenv("POSTGRES_PASSWORD", "orchestrai_secret"),
-}
+def _parse_db_config() -> dict:
+    """Parse DATABASE_URL if set (Railway/Supabase), else fall back to individual POSTGRES_* vars."""
+    raw = os.getenv("DATABASE_URL", "")
+    if raw:
+        # Strip SQLAlchemy driver prefix
+        raw = raw.split("://", 1)[-1]  # remove postgresql+xxx://
+        if "://" in raw:
+            raw = raw.split("://", 1)[-1]
+        userpass, hostdb = raw.rsplit("@", 1)
+        user, password = userpass.split(":", 1)
+        hostport, dbname = hostdb.split("/", 1)
+        dbname = dbname.split("?")[0]
+        if ":" in hostport:
+            host, port = hostport.rsplit(":", 1)
+        else:
+            host, port = hostport, "5432"
+        return {"host": host, "port": int(port), "dbname": dbname, "user": user, "password": password}
+    return {
+        "host":     os.getenv("POSTGRES_HOST", "localhost"),
+        "port":     int(os.getenv("POSTGRES_PORT", 5432)),
+        "dbname":   os.getenv("POSTGRES_DB", "orchestrai"),
+        "user":     os.getenv("POSTGRES_USER", "admin"),
+        "password": os.getenv("POSTGRES_PASSWORD", "orchestrai_secret"),
+    }
+
+DB_CONFIG_ETL = _parse_db_config()
 
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 2   # seconds
