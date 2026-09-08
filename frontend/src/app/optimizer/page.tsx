@@ -77,8 +77,13 @@ export default function OptimizerPage() {
     >
       {/* Header */}
       <div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, margin: '0 0 4px' }}>Cost Optimizer</h1>
-        <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>AI-powered SQL query optimization — reduce spend and improve execution time</p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.textPrimary, margin: '0 0 4px' }}>
+          Cost Optimizer
+        </h1>
+        <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
+          AI-powered SQL query optimization · 18 anti-patterns · Snowflake, BigQuery, PostgreSQL, Redshift
+        </p>
+        <div style={{ height: 1, margin: '16px 0 0', background: 'linear-gradient(90deg, var(--border) 0%, transparent 80%)' }} />
       </div>
 
       {/* Stat cards */}

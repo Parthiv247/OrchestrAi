@@ -7,6 +7,7 @@ import {
   ChevronDown, Trash2, Activity, XCircle, Layers, GitBranch,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { DEMO_PIPELINES } from '@/lib/demo'
 import { SkeletonTable } from '@/components/ui/Skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -417,25 +418,21 @@ export default function PipelinesPage() {
       className="space-y-6">
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: T.textPrimary, letterSpacing: '-0.02em' }}>
-            Pipelines
-          </h1>
-          <span style={{
-            fontSize: 12, fontWeight: 600, color: '#38BDF8',
-            background: 'rgba(14,165,233,0.12)', borderRadius: 999, padding: '2px 10px',
-          }}>
-            {pipelines.length}
-          </span>
-        </div>
-        <button
-          onClick={() => router.push('/pipelines/new')}
-          className="btn-primary inline-flex items-center gap-2 transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{ background: T.sky, color: '#fff', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600 }}>
-          <Plus size={15} /> New Pipeline
-        </button>
-      </div>
+      <PageHeader
+        title="Pipelines"
+        subtitle={`${pipelines.length} pipeline${pipelines.length !== 1 ? 's' : ''} in production · Manage sources, schedules, and runs`}
+        icon={GitBranch}
+        iconColor="#0EA5E9"
+        badge={{ label: `${pipelines.length} active`, color: 'blue' }}
+        actions={
+          <button
+            onClick={() => router.push('/pipelines/new')}
+            className="btn-primary inline-flex items-center gap-2"
+            style={{ background: T.sky, color: '#fff', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600 }}>
+            <Plus size={15} /> New Pipeline
+          </button>
+        }
+      />
 
       {/* ── Summary stats ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">

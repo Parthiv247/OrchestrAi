@@ -259,28 +259,34 @@ export default function ObservabilityPage() {
     <div className="space-y-6" style={{ padding: 24, background: T.bodyBg, minHeight: '100%' }}>
 
       {/* ── Header + date range picker ─────────────────────────────────────── */}
-      <motion.div {...fadeUp(0)} className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: T.text }}>Observability</h1>
-          <p className="text-sm mt-1" style={{ color: T.muted }}>
-            Pipeline health, SLAs, incidents, and agent activity in one place
-          </p>
+      <motion.div {...fadeUp(0)}>
+        <div className="flex items-start justify-between flex-wrap gap-3" style={{ marginBottom: 18 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
+              Observability
+            </h1>
+            <p style={{ fontSize: 13, color: T.muted, margin: '4px 0 0' }}>
+              Pipeline health, SLAs, incidents, and agent performance · Real-time
+            </p>
+          </div>
+          <div className="flex items-center gap-2 p-1 rounded-xl" style={{ background: T.cardBg, border: `1px solid ${T.border}` }}>
+            <CalendarDays size={13} className="ml-2" style={{ color: T.label }} />
+            {(['24h', '7d', '30d'] as DateRange[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setDateRange(r)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: dateRange === r ? 'rgba(14,165,233,0.18)' : 'transparent',
+                  color: dateRange === r ? '#38BDF8' : T.muted,
+                  borderRadius: 8,
+                }}>
+                {r === '24h' ? 'Last 24h' : r === '7d' ? 'Last 7 days' : 'Last 30 days'}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-2 p-1 rounded-xl" style={{ background: T.cardBg, border: `1px solid ${T.border}` }}>
-          <CalendarDays size={13} className="ml-2" style={{ color: T.label }} />
-          {(['24h', '7d', '30d'] as DateRange[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setDateRange(r)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{
-                background: dateRange === r ? 'rgba(14,165,233,0.18)' : 'transparent',
-                color: dateRange === r ? '#38BDF8' : T.muted,
-              }}>
-              {r === '24h' ? 'Last 24h' : r === '7d' ? 'Last 7 days' : 'Last 30 days'}
-            </button>
-          ))}
-        </div>
+        <div style={{ height: 1, background: 'linear-gradient(90deg, #1A3A5C 0%, transparent 80%)' }} />
       </motion.div>
 
       {/* ── 4 KPI cards ───────────────────────────────────────────────────── */}

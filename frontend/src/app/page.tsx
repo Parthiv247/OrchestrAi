@@ -4,129 +4,83 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Activity, AlertTriangle, CheckCircle2, Clock, Database,
-  TrendingUp, Zap, Shield, ArrowUpRight, ArrowRight,
-  Play, RefreshCw, Brain, GitBranch, Cpu,
+  TrendingUp, Zap, Shield, ArrowRight, Brain, GitBranch,
+  Cpu, Eye, RefreshCw, BarChart3, ChevronRight,
+  CircleDot, Layers, FlaskConical,
 } from 'lucide-react'
 import { useIncidents, usePipelines, useOverviewStats } from '@/lib/queries'
 import { DEMO_PIPELINES, DEMO_INCIDENTS, DEMO_STATS } from '@/lib/demo'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { StatCard } from '@/components/ui/StatCard'
 import { formatDistanceToNow } from 'date-fns'
 import { useWebSocket, WSEvent } from '@/hooks/useWebSocket'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell,
+  BarChart, Bar, Cell, LineChart, Line, CartesianGrid,
 } from 'recharts'
 
-// ── Fade-in animation helper ───────────────────────────────────────────────
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, delay, ease: [0.25, 0.46, 0.45, 0.94] },
+  transition: { duration: 0.38, delay, ease: [0.25, 0.46, 0.45, 0.94] },
 })
 
-// ── Demo sparkline data (replaced by real data when backend is up) ─────────
+// ── Demo data ──────────────────────────────────────────────────────────────
 const DEMO_THROUGHPUT = [
-  { t: '00:00', v: 12400 }, { t: '04:00', v: 18900 }, { t: '08:00', v: 31200 },
-  { t: '12:00', v: 42800 }, { t: '16:00', v: 38100 }, { t: '20:00', v: 29400 },
-  { t: '24:00', v: 33700 },
+  { t: '00', v: 12400 }, { t: '02', v: 9800 },  { t: '04', v: 11200 },
+  { t: '06', v: 19600 }, { t: '08', v: 31200 }, { t: '10', v: 38900 },
+  { t: '12', v: 42800 }, { t: '14', v: 45100 }, { t: '16', v: 38100 },
+  { t: '18', v: 33700 }, { t: '20', v: 29400 }, { t: '22', v: 24800 },
+  { t: '24', v: 33700 },
 ]
 const DEMO_HEAL_TREND = [
   { d: 'Mon', mttr: 18.7 }, { d: 'Tue', mttr: 14.2 }, { d: 'Wed', mttr: 11.1 },
   { d: 'Thu', mttr: 8.3 },  { d: 'Fri', mttr: 5.9 },  { d: 'Sat', mttr: 4.8 },
   { d: 'Sun', mttr: 4.2 },
 ]
-const DEMO_PIPELINE_BARS = [65, 82, 74, 91, 58, 78, 88]
-const BAR_COLORS = DEMO_PIPELINE_BARS.map(v => v >= 85 ? '#10B981' : v >= 70 ? '#0EA5E9' : '#F59E0B')
+const DEMO_PIPELINE_HEALTH = [
+  { name: 'NYC Taxi',  health: 98, records: '2.1M', status: 'healthy' },
+  { name: 'eCommerce', health: 91, records: '840K', status: 'healthy' },
+  { name: 'dbt Runs',  health: 85, records: '—',    status: 'degraded' },
+  { name: 'Kafka CDC', health: 74, records: '5.3M', status: 'degraded' },
+]
+const RECENT_ACTIVITY = [
+  { time: '2m ago',  color: '#10B981', icon: 'fix',  msg: 'MonitoringAgent detected NULL_SPIKE in ecommerce_orders — auto-healing triggered' },
+  { time: '11m ago', color: '#0EA5E9', icon: 'info', msg: 'CostOptimizer saved $142 by rewriting 3 inefficient Snowflake queries' },
+  { time: '28m ago', color: '#F59E0B', icon: 'warn', msg: 'CDC lag threshold exceeded on kafka_consumer_v2 (1420s > 1200s)' },
+  { time: '1h ago',  color: '#10B981', icon: 'fix',  msg: 'SandboxAgent validated fix for SCHEMA_DRIFT: 20/20 tests passed' },
+  { time: '2h ago',  color: '#7C3AED', icon: 'info', msg: 'LearningAgent stored 3 new fix patterns; MTTR improved by 12%' },
+  { time: '3h ago',  color: '#10B981', icon: 'fix',  msg: 'DiagnosisAgent resolved INCREMENTAL_SYNC_FAILURE on nyc_taxi_ingest (MTTR: 4.2 min)' },
+]
+const AGENTS = [
+  { name: 'MonitoringAgent', sub: 'IsolationForest · 50+ error signatures', icon: Eye,         color: '#10B981', state: 'running' },
+  { name: 'DiagnosisAgent',  sub: 'Groq llama-3.3-70b · 13 anomaly types',  icon: Brain,       color: '#0EA5E9', state: 'idle'    },
+  { name: 'FixWriterAgent',  sub: '18 fix templates · RAG-backed',           icon: Zap,         color: '#7C3AED', state: 'idle'    },
+  { name: 'SandboxAgent',    sub: 'Docker · 20-point test suite',            icon: FlaskConical,color: '#F59E0B', state: 'running' },
+  { name: 'CostOptimizer',   sub: '18 anti-patterns · Snowflake/BQ/PG',     icon: TrendingUp,  color: '#0EA5E9', state: 'idle'    },
+  { name: 'LearningAgent',   sub: 'ChromaDB · fix recall & MTTR tracking',   icon: Cpu,         color: '#10B981', state: 'idle'    },
+]
 
-// ── KPI Card ───────────────────────────────────────────────────────────────
-function KpiCard({
-  title, value, unit = '', sub, icon: Icon, color, trend, delay = 0,
-}: {
-  title: string; value: string | number; unit?: string; sub: string
-  icon: React.ElementType; color: string; trend?: { dir: 'up' | 'down'; pct: string }; delay?: number
-}) {
-  const colorMap: Record<string, string> = {
-    blue: '#0EA5E9', violet: '#7C3AED', emerald: '#10B981', amber: '#F59E0B', red: '#EF4444',
-  }
-  const c = colorMap[color] || colorMap.blue
+function MiniTooltip({ active, payload, label, unit = '' }: { active?: boolean; payload?: { value: number }[]; label?: string; unit?: string }) {
+  if (!active || !payload?.length) return null
   return (
-    <motion.div {...fadeUp(delay)} className="metric-hero" style={{ borderTop: `2px solid ${c}22` }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${c}, ${c}88)`, borderRadius: '16px 16px 0 0' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-label)' }}>{title}</span>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: `${c}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={15} style={{ color: c }} />
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-        <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1 }}>{value}</span>
-        {unit && <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>{unit}</span>}
-        {trend && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: trend.dir === 'up' ? '#10B981' : '#EF4444', marginLeft: 6, display: 'flex', alignItems: 'center', gap: 2 }}>
-            {trend.dir === 'up' ? '↑' : '↓'} {trend.pct}
-          </span>
-        )}
-      </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{sub}</p>
-    </motion.div>
-  )
-}
-
-// ── System Status Banner ───────────────────────────────────────────────────
-function StatusBanner({ incidents }: { incidents: number }) {
-  const ok = incidents === 0
-  return (
-    <motion.div {...fadeUp(0)} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 18px', borderRadius: 10, marginBottom: 24,
-      background: ok ? 'rgba(16,185,129,0.07)' : 'rgba(245,158,11,0.07)',
-      border: `1px solid ${ok ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 8, height: 8, borderRadius: '50%',
-          background: ok ? '#10B981' : '#F59E0B',
-          boxShadow: ok ? '0 0 0 3px rgba(16,185,129,0.25)' : '0 0 0 3px rgba(245,158,11,0.25)',
-          animation: 'pulse-green 2s infinite',
-        }} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: ok ? '#10B981' : '#F59E0B' }}>
-          {ok ? 'All Systems Operational' : `${incidents} Active Incident${incidents > 1 ? 's' : ''} — Healing in Progress`}
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        {['Pipeline Engine', 'AI Agents', 'Monitoring', 'WebSocket'].map(s => (
-          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#10B981' }} />
-            {s}
-          </div>
-        ))}
-      </div>
-    </motion.div>
-  )
-}
-
-// ── Section header ─────────────────────────────────────────────────────────
-function SectionHead({ title, action, onClick }: { title: string; action?: string; onClick?: () => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-      <h2 style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-label)', margin: 0 }}>{title}</h2>
-      {action && (
-        <button onClick={onClick} style={{ fontSize: 12, color: '#0EA5E9', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-          {action} <ArrowRight size={12} />
-        </button>
-      )}
+    <div style={{ background: '#112B47', border: '1px solid #1A3A5C', borderRadius: 7, padding: '5px 11px', fontSize: 11 }}>
+      <p style={{ color: 'var(--text-muted)', margin: 0 }}>{label}</p>
+      <p style={{ color: '#F1F5F9', fontWeight: 700, margin: '2px 0 0' }}>{payload[0].value.toLocaleString()}{unit}</p>
     </div>
   )
 }
 
-// ── Inline mini chart tooltip ──────────────────────────────────────────────
-function MiniTooltip({ active, payload, label, unit = '' }: {active?:boolean; payload?: {value:number}[]; label?:string; unit?:string}) {
-  if (!active || !payload?.length) return null
+function SectionHead({ title, action, onClick }: { title: string; action?: string; onClick?: () => void }) {
   return (
-    <div style={{ background: '#112B47', border: '1px solid #1A3A5C', borderRadius: 6, padding: '5px 10px', fontSize: 11 }}>
-      <p style={{ color: 'var(--text-muted)', margin: 0 }}>{label}</p>
-      <p style={{ color: '#F1F5F9', fontWeight: 600, margin: 0 }}>{payload[0].value.toLocaleString()}{unit}</p>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-label)', margin: 0 }}>{title}</h2>
+      {action && (
+        <button onClick={onClick} style={{ fontSize: 12, color: '#0EA5E9', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0 }}>
+          {action} <ChevronRight size={12} />
+        </button>
+      )}
     </div>
   )
 }
@@ -136,20 +90,21 @@ export default function OverviewPage() {
   const router = useRouter()
   const qc = useQueryClient()
   const { data: statsData } = useOverviewStats()
-  const { data: incidentsData } = useIncidents({ limit: 6 })
+  const { data: incidentsData } = useIncidents({ limit: 10 })
   const { data: pipelinesData } = usePipelines()
 
-  // Fall back to demo data when backend is unreachable
   const backendDown = !statsData && !pipelinesData
   const stats = statsData ?? (backendDown ? DEMO_STATS : {})
   const rawIncidents = (incidentsData as { incidents?: unknown[] })?.incidents ?? incidentsData ?? []
-  const incidents: any[] = (Array.isArray(rawIncidents) && rawIncidents.length > 0) ? rawIncidents : (backendDown ? DEMO_INCIDENTS : [])
-  const pipelines: any[] = (Array.isArray(pipelinesData) && (pipelinesData as unknown[]).length > 0) ? pipelinesData as any[] : (backendDown ? DEMO_PIPELINES : [])
+  const incidents: any[] = (Array.isArray(rawIncidents) && rawIncidents.length > 0)
+    ? rawIncidents : (backendDown ? DEMO_INCIDENTS : [])
+  const pipelines: any[] = (Array.isArray(pipelinesData) && (pipelinesData as unknown[]).length > 0)
+    ? pipelinesData as any[]
+    : (backendDown ? DEMO_PIPELINES : [])
   const activeIncidents = incidents.filter((i: any) => i.status === 'open' || i.status === 'healing')
 
-  // Real-time WebSocket
   useWebSocket((evt: WSEvent) => {
-    if (['incident.created','incident.updated','pipeline.run_completed','healing.completed'].includes(evt.type)) {
+    if (['incident.created', 'incident.updated', 'pipeline.run_completed', 'healing.completed'].includes(evt.type)) {
       qc.invalidateQueries()
     }
   })
@@ -158,72 +113,119 @@ export default function OverviewPage() {
   const healRate = stats.healing_success_rate ? Math.round(stats.healing_success_rate * 100) : 94
   const totalPipelines = stats.total_pipelines ?? pipelines.length
   const totalIncidents = stats.total_incidents ?? incidents.length
+  const ok = activeIncidents.length === 0
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1600, margin: '0 auto' }}>
-      {/* ── Status Banner ── */}
-      <StatusBanner incidents={activeIncidents.length} />
 
-      {/* ── KPI Row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <KpiCard title="Pipelines" value={totalPipelines} sub="Active data pipelines" icon={GitBranch} color="blue" delay={0} trend={{ dir: 'up', pct: '2 this week' }} />
-        <KpiCard title="Avg MTTR" value={mttr} unit="min" sub="vs 18.7 min baseline (−78%)" icon={Clock} color="emerald" delay={0.05} trend={{ dir: 'down', pct: '78%' }} />
-        <KpiCard title="Heal Rate" value={healRate} unit="%" sub="Autonomous healing success" icon={Shield} color="violet" delay={0.1} trend={{ dir: 'up', pct: '6%' }} />
-        <KpiCard title="Incidents" value={totalIncidents || 0} sub="Detected anomalies (30d)" icon={AlertTriangle} color="amber" delay={0.15} />
+      {/* ── Hero header ── */}
+      <motion.div {...fadeUp(0)} style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)', margin: 0 }}>
+              Platform Overview
+            </h1>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Self-healing data pipeline intelligence · 11 LangGraph agents active
+            </p>
+          </div>
+          {/* System status pill */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+            borderRadius: 40, flexShrink: 0,
+            background: ok ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+            border: `1px solid ${ok ? 'rgba(16,185,129,0.22)' : 'rgba(245,158,11,0.22)'}`,
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%', display: 'block',
+              background: ok ? '#10B981' : '#F59E0B',
+              animation: ok ? 'pulse-green 2s infinite' : 'pulse-amber 2.8s infinite',
+            }} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: ok ? '#10B981' : '#F59E0B' }}>
+              {ok ? 'All Systems Operational' : `${activeIncidents.length} Active Incident${activeIncidents.length > 1 ? 's' : ''}`}
+            </span>
+            {/* Sub-status dots */}
+            <div style={{ display: 'flex', gap: 10, marginLeft: 8, paddingLeft: 12, borderLeft: '1px solid var(--border)' }}>
+              {['Pipelines', 'Agents', 'Monitoring'].map(s => (
+                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                  {s}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ height: 1, background: 'linear-gradient(90deg, var(--border) 0%, transparent 80%)' }} />
+      </motion.div>
+
+      {/* ── KPI row ── */}
+      <div className="stat-grid-4" style={{ marginBottom: 24 }}>
+        <StatCard title="Active Pipelines" value={totalPipelines} sub="Running in production" icon={GitBranch} color="blue" delay={0} delta={{ value: '2 this week', positive: true }} live />
+        <StatCard title="Avg MTTR" value={mttr} unit="min" sub="vs 18.7 min manual baseline" icon={Clock} color="green" delay={0.06} delta={{ value: '78%', positive: false }} />
+        <StatCard title="Heal Rate" value={healRate} unit="%" sub="Autonomous healing success" icon={Shield} color="violet" delay={0.12} delta={{ value: '6% MoM', positive: true }} />
+        <StatCard title="Anomalies (30d)" value={totalIncidents || 0} sub="Auto-detected by agents" icon={AlertTriangle} color="amber" delay={0.18} />
       </div>
 
-      {/* ── Main 2-col grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, marginBottom: 20 }}>
+      {/* ── Main content: throughput + incidents ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 18, marginBottom: 18 }}>
 
-        {/* ── Left: Throughput chart ── */}
-        <motion.div {...fadeUp(0.2)} className="card" style={{ padding: 24 }}>
-          <SectionHead title="Pipeline Throughput" action="View Pipelines" onClick={() => router.push('/pipelines')} />
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 20 }}>
-            <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {(stats.total_records_loaded || 168400).toLocaleString()}
+        {/* Throughput chart */}
+        <motion.div {...fadeUp(0.22)} className="card" style={{ padding: 24 }}>
+          <SectionHead title="Pipeline Throughput — Last 24h" action="View Pipelines" onClick={() => router.push('/pipelines')} />
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
+            <span style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
+              {(stats.total_records_loaded || 168_400).toLocaleString()}
             </span>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>records today</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#10B981', marginLeft: 4 }}>↑ 23% vs yesterday</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#10B981', marginLeft: 2 }}>↑ 23% vs yesterday</span>
           </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={DEMO_THROUGHPUT} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={155}>
+            <AreaChart data={DEMO_THROUGHPUT} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
               <defs>
-                <linearGradient id="throughputGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.25} />
+                <linearGradient id="thrGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="t" tick={{ fontSize: 10, fill: '#4B6B8E' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#4B6B8E' }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
+              <YAxis tick={{ fontSize: 10, fill: '#4B6B8E' }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip content={<MiniTooltip unit=" records" />} />
-              <Area type="monotone" dataKey="v" stroke="#0EA5E9" strokeWidth={2} fill="url(#throughputGrad)" dot={false} />
+              <Area type="monotone" dataKey="v" stroke="#0EA5E9" strokeWidth={2} fill="url(#thrGrad)" dot={false} activeDot={{ r: 4, fill: '#0EA5E9' }} />
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>
 
-        {/* ── Right: Active incidents ── */}
-        <motion.div {...fadeUp(0.25)} className="card" style={{ padding: 24 }}>
-          <SectionHead title="Live Incidents" action="Approvals" onClick={() => router.push('/approvals')} />
+        {/* Active incidents / healing queue */}
+        <motion.div {...fadeUp(0.27)} className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
+          <SectionHead title="Healing Queue" action="Approvals" onClick={() => router.push('/approvals')} />
           {activeIncidents.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <CheckCircle2 size={36} style={{ color: '#10B981', margin: '0 auto 10px' }} />
-              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>No active incidents</p>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>All pipelines healing autonomously</p>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '16px 0' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle2 size={22} style={{ color: '#10B981' }} />
+              </div>
+              <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Queue empty</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>All anomalies healed autonomously</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {activeIncidents.slice(0, 5).map((inc: any) => (
-                <div key={inc.id} onClick={() => router.push('/approvals')} style={{
-                  padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-                  background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
-                  transition: 'all 0.15s',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{inc.anomaly_type?.replace(/_/g,' ')}</span>
+                <div key={inc.id} onClick={() => router.push('/approvals')}
+                  style={{
+                    padding: '10px 14px', borderRadius: 9, cursor: 'pointer',
+                    background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.35)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.15)' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {inc.anomaly_type?.replace(/_/g, ' ')}
+                    </span>
                     <StatusBadge status={inc.severity} />
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-                    {formatDistanceToNow(new Date(inc.detected_at), { addSuffix: true })}
+                    {inc.pipeline_name ?? 'Unknown pipeline'} · {formatDistanceToNow(new Date(inc.detected_at), { addSuffix: true })}
                   </p>
                 </div>
               ))}
@@ -232,80 +234,128 @@ export default function OverviewPage() {
         </motion.div>
       </div>
 
-      {/* ── Bottom 3-col grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+      {/* ── Second row: MTTR trend + Pipeline health + AI Agents ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.1fr', gap: 18, marginBottom: 18 }}>
 
         {/* MTTR Trend */}
         <motion.div {...fadeUp(0.3)} className="card" style={{ padding: 24 }}>
-          <SectionHead title="MTTR Trend" action="Observability" onClick={() => router.push('/observability')} />
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
-            <span style={{ fontSize: 24, fontWeight: 700, color: '#10B981' }}>{mttr}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>min avg this week</span>
+          <SectionHead title="MTTR Trend (7d)" action="Observability" onClick={() => router.push('/observability')} />
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 28, fontWeight: 800, color: '#10B981', letterSpacing: '-0.03em' }}>{mttr}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>min avg</span>
           </div>
-          <ResponsiveContainer width="100%" height={100}>
-            <AreaChart data={DEMO_HEAL_TREND} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '0 0 14px' }}>
+            −78% vs 18.7 min manual baseline
+          </p>
+          <ResponsiveContainer width="100%" height={95}>
+            <AreaChart data={DEMO_HEAL_TREND} margin={{ top: 0, right: 0, left: -34, bottom: 0 }}>
               <defs>
                 <linearGradient id="mttrGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
+                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.22} />
                   <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="d" tick={{ fontSize: 9, fill: '#4B6B8E' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="d" tick={{ fontSize: 9.5, fill: '#4B6B8E' }} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip content={<MiniTooltip unit=" min" />} />
-              <Area type="monotone" dataKey="mttr" stroke="#10B981" strokeWidth={2} fill="url(#mttrGrad)" dot={false} />
+              <Area type="monotone" dataKey="mttr" stroke="#10B981" strokeWidth={2} fill="url(#mttrGrad)" dot={false} activeDot={{ r: 3, fill: '#10B981' }} />
             </AreaChart>
           </ResponsiveContainer>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>78% improvement vs 18.7 min manual baseline</p>
         </motion.div>
 
-        {/* Pipeline health bars */}
+        {/* Pipeline Health */}
         <motion.div {...fadeUp(0.35)} className="card" style={{ padding: 24 }}>
           <SectionHead title="Pipeline Health" action="Pipelines" onClick={() => router.push('/pipelines')} />
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
-            <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {pipelines.length > 0 ? `${pipelines.filter((p: any) => p.last_run?.status === 'success').length}/${pipelines.length}` : '4/4'}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>pipelines healthy</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {DEMO_PIPELINE_HEALTH.map(({ name, health, records, status }) => (
+              <div key={name}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%', display: 'block',
+                      background: status === 'healthy' ? '#10B981' : '#F59E0B',
+                    }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{name}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{records}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: health >= 90 ? '#10B981' : health >= 75 ? '#F59E0B' : '#EF4444' }}>
+                      {health}%
+                    </span>
+                  </div>
+                </div>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{
+                    width: `${health}%`,
+                    background: health >= 90 ? '#10B981' : health >= 75 ? 'linear-gradient(90deg,#F59E0B,#FBBF24)' : '#EF4444',
+                  }} />
+                </div>
+              </div>
+            ))}
           </div>
-          <ResponsiveContainer width="100%" height={100}>
-            <BarChart data={DEMO_PIPELINE_BARS.map((v, i) => ({ n: `P${i+1}`, v }))} barSize={16} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-              <XAxis dataKey="n" tick={{ fontSize: 9, fill: '#4B6B8E' }} axisLine={false} tickLine={false} />
-              <YAxis hide domain={[0, 100]} />
-              <Tooltip content={<MiniTooltip unit="%" />} />
-              <Bar dataKey="v" radius={[3, 3, 0, 0]}>
-                {DEMO_PIPELINE_BARS.map((v, i) => <Cell key={i} fill={BAR_COLORS[i]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>SLA compliance last 7 days</p>
         </motion.div>
 
-        {/* AI Agent status */}
+        {/* AI Agent Status */}
         <motion.div {...fadeUp(0.4)} className="card" style={{ padding: 24 }}>
           <SectionHead title="AI Agent Status" action="Observability" onClick={() => router.push('/observability')} />
-          {[
-            { name: 'MonitoringAgent', status: 'running', icon: Activity, color: '#10B981', sub: 'IsolationForest · scanning' },
-            { name: 'DiagnosisAgent', status: 'idle', icon: Brain, color: '#0EA5E9', sub: 'Groq llama-3.3-70b' },
-            { name: 'HealingAgent', status: 'idle', icon: Zap, color: '#7C3AED', sub: 'Awaiting approval' },
-            { name: 'CostOptimizer', status: 'running', icon: TrendingUp, color: '#F59E0B', sub: '34% avg savings' },
-          ].map(({ name, status, icon: Icon, color, sub }) => (
-            <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon size={13} style={{ color }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {AGENTS.map(({ name, sub, icon: Icon, color, state }) => (
+              <div key={name} style={{
+                display: 'flex', alignItems: 'center', gap: 11, padding: '7px 0',
+                borderBottom: '1px solid var(--border-light)',
+              }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                  background: `${color}15`, border: `1px solid ${color}25`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon size={13} style={{ color }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>{name}</p>
+                  <p style={{ fontSize: 10.5, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', display: 'block',
+                    background: state === 'running' ? '#10B981' : '#4B6B8E',
+                    animation: state === 'running' ? 'pulse-green 2s infinite' : 'none',
+                  }} />
+                  <span style={{ fontSize: 10.5, color: state === 'running' ? '#10B981' : 'var(--text-muted)', fontWeight: 500 }}>
+                    {state}
+                  </span>
+                </div>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{name}</p>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{sub}</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: status === 'running' ? '#10B981' : '#4B6B8E', animation: status === 'running' ? 'pulse-green 2s infinite' : 'none' }} />
-                <span style={{ fontSize: 10, color: status === 'running' ? '#10B981' : 'var(--text-muted)', fontWeight: 500 }}>{status}</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </motion.div>
       </div>
+
+      {/* ── Bottom row: Recent Activity ── */}
+      <motion.div {...fadeUp(0.44)} className="card" style={{ padding: 24 }}>
+        <SectionHead title="Recent Activity" action="Observability" onClick={() => router.push('/observability')} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {RECENT_ACTIVITY.map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '9px 0',
+              borderBottom: i < RECENT_ACTIVITY.length - 1 ? '1px solid var(--border-light)' : 'none',
+            }}>
+              {/* Colored dot */}
+              <div style={{ flexShrink: 0, marginTop: 4 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: item.color, display: 'block' }} />
+              </div>
+              {/* Message */}
+              <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, flex: 1 }}>
+                {item.msg}
+              </p>
+              {/* Time */}
+              <span style={{ fontSize: 11, color: 'var(--text-label)', flexShrink: 0, paddingTop: 2 }}>
+                {item.time}
+              </span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
     </div>
   )
 }

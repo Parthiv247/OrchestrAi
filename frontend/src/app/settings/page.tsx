@@ -666,22 +666,26 @@ export default function SettingsPage() {
       style={{ display: 'flex', height: 'calc(100vh - 56px)', background: C.bg }}
     >
       {/* Left nav */}
-      <div style={{ width: 220, background: '#09111E', borderRight: `1px solid ${C.border}`, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-        <p style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: C.textLabel, fontWeight: 600, margin: '0 0 12px 8px' }}>Settings</p>
+      <div style={{ width: 224, background: '#09111E', borderRight: `1px solid ${C.border}`, padding: '20px 10px', display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+        <p style={{ fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.textLabel, fontWeight: 700, margin: '0 0 10px 10px' }}>Settings</p>
         {TABS.map(tab => {
           const { icon: Icon } = TAB_META[tab]
           const isActive = active === tab
           return (
             <button key={tab} onClick={() => setActive(tab)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8,
-                width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: 13, fontWeight: isActive ? 600 : 400,
+                display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderRadius: 9,
+                width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: 13, fontWeight: isActive ? 600 : 500,
                 background: isActive ? 'rgba(14,165,233,0.12)' : 'transparent',
                 color: isActive ? C.accent : C.textMuted,
-                border: 'none',
-                borderLeft: isActive ? `2px solid ${C.accent}` : '2px solid transparent',
+                border: isActive ? '1px solid rgba(14,165,233,0.2)' : '1px solid transparent',
+                position: 'relative',
                 transition: 'all 0.15s',
-              }}>
+              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              {isActive && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 16, borderRadius: '0 3px 3px 0', background: 'linear-gradient(180deg,#0EA5E9,#7C3AED)' }} />}
               <Icon size={14} style={{ flexShrink: 0 }} />
               <span>{tab}</span>
             </button>
@@ -692,8 +696,9 @@ export default function SettingsPage() {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
         <div style={{ maxWidth: 680 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: C.textPrimary, margin: '0 0 4px' }}>{active}</h2>
-          <p style={{ fontSize: 12, color: C.textMuted, margin: '0 0 24px' }}>{TAB_META[active].desc}</p>
+          <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: C.textPrimary, margin: '0 0 4px' }}>{active}</h2>
+          <p style={{ fontSize: 13, color: C.textMuted, margin: '0 0 6px' }}>{TAB_META[active].desc}</p>
+          <div style={{ height: 1, background: 'linear-gradient(90deg, var(--border) 0%, transparent 80%)', margin: '0 0 24px' }} />
 
           {active === 'General'       && <GeneralTab onSave={() => toast('Profile saved', 'success')} />}
           {active === 'Team'          && <TeamTab />}

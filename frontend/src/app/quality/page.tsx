@@ -432,36 +432,43 @@ export default function QualityPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white">Data Quality</h1>
-          <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Schema health, quality rules, and drift detection
-          </p>
+      <div style={{ marginBottom: 4 }}>
+        <div className="flex items-start justify-between flex-wrap gap-3" style={{ marginBottom: 18 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)', margin: 0 }}>
+              Data Quality
+            </h1>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Schema health, quality rules, drift detection, and PII scanning
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span style={{
+              fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20,
+              background: summary?.overall_health === 'good' ? 'rgba(16,185,129,0.12)' : summary?.overall_health === 'warning' ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
+              border: `1px solid ${summary?.overall_health === 'good' ? 'rgba(16,185,129,0.25)' : summary?.overall_health === 'warning' ? 'rgba(245,158,11,0.25)' : 'rgba(239,68,68,0.25)'}`,
+              color: summary?.overall_health === 'good' ? '#10B981' : summary?.overall_health === 'warning' ? '#F59E0B' : '#EF4444',
+            }}>
+              {summary?.overall_health === 'good' ? '✓ Healthy' : summary?.overall_health === 'warning' ? '⚠ Warning' : '✕ Critical'}
+            </span>
+            {tab === 'rules' && (
+              <button onClick={() => setShowAddRule(true)}
+                className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90"
+                style={{ background: '#0EA5E9' }}>
+                <Plus size={14} /> Add Rule
+              </button>
+            )}
+            {tab === 'pii' && allPiiResults.length > 0 && (
+              <button onClick={runPiiScan} disabled={piiScanning}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#7C3AED', borderRadius: 9 }}>
+                <Scan size={14} className={piiScanning ? 'animate-spin' : ''} />
+                {piiScanning ? 'Scanning…' : 'Re-scan'}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-3 py-1.5 rounded-xl font-semibold`} style={{
-            background: summary?.overall_health === 'good' ? 'rgba(34,197,94,0.15)' : summary?.overall_health === 'warning' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
-            color: summary?.overall_health === 'good' ? '#10B981' : summary?.overall_health === 'warning' ? '#f59e0b' : '#ef4444',
-          }}>
-            {summary?.overall_health === 'good' ? '✓ Healthy' : summary?.overall_health === 'warning' ? '⚠ Warning' : '✕ Critical'}
-          </span>
-          {tab === 'rules' && (
-            <button onClick={() => setShowAddRule(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90"
-              style={{ background: '#0EA5E9' }}>
-              <Plus size={14} /> Add Rule
-            </button>
-          )}
-          {tab === 'pii' && allPiiResults.length > 0 && (
-            <button onClick={runPiiScan} disabled={piiScanning}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-              style={{ background: '#7C3AED' }}>
-              <Scan size={14} className={piiScanning ? 'animate-spin' : ''} />
-              {piiScanning ? 'Scanning…' : 'Re-scan'}
-            </button>
-          )}
-        </div>
+        <div style={{ height: 1, background: 'linear-gradient(90deg, var(--border) 0%, transparent 80%)' }} />
       </div>
 
       {/* Summary cards */}

@@ -594,21 +594,24 @@ export default function ConnectorsPage() {
       className="min-h-full space-y-6">
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: T.textPrimary, letterSpacing: '-0.02em' }}>
-            Connectors
-          </h1>
-          <p style={{ fontSize: 13, color: T.textMuted, marginTop: 2 }}>
-            Connect a new data source · {catalogData?.total || allConnectors.length} connectors available · {connectedCount} active
-          </p>
+      <div style={{ marginBottom: 4 }}>
+        <div className="flex items-start justify-between" style={{ marginBottom: 18 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: T.textPrimary, margin: 0 }}>
+              Connectors
+            </h1>
+            <p style={{ fontSize: 13, color: T.textMuted, margin: '4px 0 0' }}>
+              {catalogData?.total || allConnectors.length} connectors available · {connectedCount} active · PostgreSQL, Snowflake, BigQuery &amp; more
+            </p>
+          </div>
+          <button
+            onClick={openBlankDialog}
+            className="btn-primary inline-flex items-center gap-2"
+            style={{ background: T.sky, color: '#fff', borderRadius: 9, padding: '8px 18px', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+            <Plus size={15} /> Add Connection
+          </button>
         </div>
-        <button
-          onClick={openBlankDialog}
-          className="btn-primary inline-flex items-center gap-2 transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{ background: T.sky, color: '#fff', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600 }}>
-          <Plus size={15} /> Add Connection
-        </button>
+        <div style={{ height: 1, background: 'linear-gradient(90deg, var(--border) 0%, transparent 80%)' }} />
       </div>
 
       {/* ── Search + filter bar ──────────────────────────────────────────── */}

@@ -193,12 +193,12 @@ export default function ApprovalsPage() {
       <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${C.border}`, background: C.card }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Shield size={18} style={{ color: C.amber }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 18, fontWeight: 700, color: C.textPrimary, margin: 0 }}>Approval Panel</h1>
-              <p style={{ fontSize: 12, color: C.textMuted, margin: 0 }}>Review and deploy AI-generated pipeline fixes</p>
+              <h1 style={{ fontSize: 20, fontWeight: 800, color: C.textPrimary, margin: 0, letterSpacing: '-0.02em' }}>Approval Panel</h1>
+              <p style={{ fontSize: 12, color: C.textMuted, margin: '2px 0 0' }}>Review and approve AI-generated pipeline fixes before deployment</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
