@@ -8,6 +8,7 @@ import {
 import { useMutation } from '@tanstack/react-query'
 import { useDbtModels, useDbtRuns, useGenerateDbt } from '@/lib/queries'
 import { optimizerApi, analystApi } from '@/lib/api'
+import { DEMO_DBT_MODELS, DEMO_DBT_RUNS } from '@/lib/demo'
 import { CodeBlock } from '@/components/ui/CodeBlock'
 import { useToast } from '@/components/ui/Toaster'
 import type { DbtModel, DbtRun, OptimizerResult, AntiPattern } from '@/lib/types'
@@ -102,10 +103,12 @@ export default function DbtPage() {
   const [runResult, setRunResult] = useState<RunResult | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const modelList: DbtModel[] = Array.isArray(models) ? models : []
+  const _dbtDown = !modelsLoading && !runsLoading && !models && !runs
+  const modelList: DbtModel[] = Array.isArray(models) && models.length > 0 ? models : (_dbtDown ? (DEMO_DBT_MODELS as unknown as DbtModel[]) : [])
   const staging = modelList.filter((m: DbtModel) => m.schema_layer === 'staging')
   const marts = modelList.filter((m: DbtModel) => m.schema_layer === 'marts')
-  const lastRun: DbtRunExtended | null = Array.isArray(runs) && runs.length > 0 ? runs[0] : null
+  const runList = Array.isArray(runs) && runs.length > 0 ? runs : (_dbtDown ? DEMO_DBT_RUNS : [])
+  const lastRun: DbtRunExtended | null = runList.length > 0 ? (runList[0] as unknown as DbtRunExtended) : null
 
   const optimize = useMutation({
     mutationFn: () => optimizerApi.optimize(sql).then(r => r.data),

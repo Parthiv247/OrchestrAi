@@ -7,6 +7,7 @@ import {
   Database, X, Search, Eye, EyeOff, Scan,
 } from 'lucide-react'
 import api from '@/lib/api'
+import { DEMO_QUALITY_SUMMARY, DEMO_QUALITY_TABLES, DEMO_QUALITY_RULES, DEMO_DRIFT_EVENTS } from '@/lib/demo'
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const method = ((opts?.method ?? 'GET') as string).toUpperCase()
@@ -381,11 +382,15 @@ export default function QualityPage() {
     }
   }
 
-  const tables: TableHealth[] = tablesData?.tables || []
-  const rules: QualityRule[] = rulesData?.rules || []
-  const driftEvents: DriftEvent[] = driftData?.events || []
+  const _qualityDown = !tablesLoading && !rulesLoading && !tablesData && !rulesData
+
+  const tables: TableHealth[] = tablesData?.tables?.length ? tablesData.tables : (_qualityDown ? (DEMO_QUALITY_TABLES as unknown as TableHealth[]) : [])
+  const rules: QualityRule[] = rulesData?.rules?.length ? rulesData.rules : (_qualityDown ? (DEMO_QUALITY_RULES as unknown as QualityRule[]) : [])
+  const driftEvents: DriftEvent[] = driftData?.events?.length ? driftData.events : (_qualityDown ? (DEMO_DRIFT_EVENTS as unknown as DriftEvent[]) : [])
   const piiByTable: Record<string, PiiResult[]> = piiData?.by_table || {}
   const allPiiResults: PiiResult[] = Object.values(piiByTable).flat()
+
+  const _summarySource = summary || (_qualityDown ? DEMO_QUALITY_SUMMARY : null)
 
   const runPiiScan = async () => {
     setPiiScanning(true)
@@ -405,10 +410,10 @@ export default function QualityPage() {
   const filteredTables = tables.filter(t => t.name.toLowerCase().includes(search.toLowerCase()))
 
   const summaryCards = [
-    { label: 'Tables Monitored', value: summary?.table_count ?? '—', icon: Database,    color: '#0EA5E9' },
-    { label: 'Active Rules',     value: summary?.rule_count ?? '—',  icon: ShieldCheck, color: '#10B981' },
-    { label: 'Failing Rules',    value: summary?.failing_rules ?? 0, icon: AlertCircle, color: '#ef4444' },
-    { label: 'Open Drift',       value: summary?.open_drift_events ?? 0, icon: GitBranch, color: '#f59e0b' },
+    { label: 'Tables Monitored', value: _summarySource?.table_count ?? '—', icon: Database,    color: '#0EA5E9' },
+    { label: 'Active Rules',     value: _summarySource?.rule_count ?? '—',  icon: ShieldCheck, color: '#10B981' },
+    { label: 'Failing Rules',    value: _summarySource?.failing_rules ?? 0, icon: AlertCircle, color: '#ef4444' },
+    { label: 'Open Drift',       value: _summarySource?.open_drift_events ?? 0, icon: GitBranch, color: '#f59e0b' },
   ]
 
   const driftIcon: Record<string, string> = {

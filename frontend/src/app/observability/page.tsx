@@ -1,6 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { DEMO_INSIGHTS, DEMO_LEARNING_STATS, DEMO_METRICS_HISTORY, DEMO_SLA_DATA, DEMO_MTTR_TREND, DEMO_INCIDENTS } from '@/lib/demo'
 import { motion } from 'framer-motion'
 import {
   Brain, RefreshCw, Activity, BarChart2, Gauge, TrendingUp,
@@ -124,16 +125,23 @@ export default function ObservabilityPage() {
     staleTime: 120_000,
   })
 
-  const insights = insightsData?.insights || []
-  const pipelineChartRaw = metricsData?.pipeline_records || []
-  const incidentChart: { date?: string; count?: number }[] = metricsData?.incidents_per_day || []
+  const _backendDown = !insightsLoading && !metricsLoading && !insightsData && !metricsData
+
+  const insights = insightsData?.insights?.length ? insightsData.insights : (_backendDown ? DEMO_INSIGHTS : [])
+  const pipelineChartRaw = metricsData?.pipeline_records?.length ? metricsData.pipeline_records : (_backendDown ? DEMO_METRICS_HISTORY.pipeline_records : [])
+  const incidentChart: { date?: string; count?: number }[] = metricsData?.incidents_per_day?.length ? metricsData.incidents_per_day : (_backendDown ? DEMO_METRICS_HISTORY.incidents_per_day : [])
   const { data: pipelineChartData, pipelines: pipelineKeys } = buildPipelineChart(pipelineChartRaw)
 
-  const slaRows: { dag_id?: string; sla_pct?: number; total_runs?: number; successful_runs?: number; p95_latency?: number; error_rate?: number; success_rate?: number; p95_s?: number; sla_breaches?: number }[] = slaData?.sla_by_pipeline || []
-  const dailyTimeline: { date?: string; [key: string]: string | number | undefined }[] = slaData?.daily_timeline || []
-  const overall = slaData?.overall || {}
+  const _slaSource = slaData || (_backendDown ? DEMO_SLA_DATA : null)
+  const slaRows: { dag_id?: string; sla_pct?: number; total_runs?: number; successful_runs?: number; p95_latency?: number; error_rate?: number; success_rate?: number; p95_s?: number; sla_breaches?: number }[] = _slaSource?.sla_by_pipeline || []
+  const dailyTimeline: { date?: string; [key: string]: string | number | undefined }[] = _slaSource?.daily_timeline || []
+  const overall = _slaSource?.overall || {}
 
-  const incidents: Incident[] = incidentsData?.incidents || []
+  const _rawIncidents = incidentsData?.incidents || []
+  const incidents: Incident[] = _rawIncidents.length ? _rawIncidents : (_backendDown ? (DEMO_INCIDENTS as unknown as Incident[]) : [])
+
+  const _mttrSource = mttrTrendData || (_backendDown ? DEMO_MTTR_TREND : null)
+  const _learningSource = learningStats || (_backendDown ? DEMO_LEARNING_STATS : null)
 
   // ── Derived KPIs ────────────────────────────────────────────────────────────
   const rangeMs = RANGE_HOURS[dateRange] * 3600 * 1000
@@ -219,7 +227,7 @@ export default function ObservabilityPage() {
   }
 
   // ── MTTR trend helpers ────────────────────────────────────────────────────
-  const mttrTrendPoints: Array<{ date: string; mttr: number }> = mttrTrendData?.trend ?? []
+  const mttrTrendPoints: Array<{ date: string; mttr: number }> = mttrTrendData?.trend ?? (_backendDown ? DEMO_MTTR_TREND.map(p => ({ date: p.week, mttr: p.mttr_minutes })) : [])
   const mttrImproving = useMemo(() => {
     if (mttrTrendPoints.length < 4) return false
     const first = mttrTrendPoints.slice(0, 3).reduce((a, b) => a + b.mttr, 0) / 3
@@ -671,17 +679,17 @@ export default function ObservabilityPage() {
             <div className="flex gap-8">
               {learningLoading ? <CardSkeleton /> : <>
                 <div className="text-center">
-                  <p className="text-2xl font-bold tabular-nums" style={{ color: '#A78BFA' }}>{learningStats?.total_fixes_stored || 0}</p>
+                  <p className="text-2xl font-bold tabular-nums" style={{ color: '#A78BFA' }}>{_learningSource?.total_fixes_stored ?? (_learningSource as typeof DEMO_LEARNING_STATS | null)?.total_samples ?? 0}</p>
                   <p className="text-xs" style={{ color: T.muted }}>Fixes Stored in RAG</p>
                   <p className="text-xs" style={{ color: '#A78BFA' }}>self-healing memory</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold tabular-nums" style={{ color: '#38BDF8' }}>{learningStats?.total_queries_stored || 0}</p>
+                  <p className="text-2xl font-bold tabular-nums" style={{ color: '#38BDF8' }}>{_learningSource?.total_queries_stored ?? 0}</p>
                   <p className="text-xs" style={{ color: T.muted }}>Queries Stored</p>
                   <p className="text-xs" style={{ color: '#38BDF8' }}>SQL pattern library</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold tabular-nums" style={{ color: T.emerald }}>{learningStats?.auto_healed_count || 0}</p>
+                  <p className="text-2xl font-bold tabular-nums" style={{ color: T.emerald }}>{_learningSource?.auto_healed_count ?? 0}</p>
                   <p className="text-xs" style={{ color: T.muted }}>Auto-healed</p>
                   <p className="text-xs" style={{ color: T.emerald }}>high confidence</p>
                 </div>

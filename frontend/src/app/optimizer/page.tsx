@@ -8,6 +8,7 @@ import { optimizerApi } from '@/lib/api'
 import { useToast } from '@/components/ui/Toaster'
 import { CodeBlock } from '@/components/ui/CodeBlock'
 import { CardSkeleton } from '@/components/ui/LoadingSkeleton'
+import { DEMO_SAVINGS } from '@/lib/demo'
 import type { LucideIcon } from '@/lib/types'
 import type { OptimizerResult, SavingsHistory, AntiPattern } from '@/lib/types'
 
@@ -48,7 +49,8 @@ export default function OptimizerPage() {
   const [result, setResult] = useState<OptimizerResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<SavingsHistory[]>([])
-  const { data: savings, isLoading: savLoading } = useSavings()
+  const { data: savingsRaw, isLoading: savLoading } = useSavings()
+  const savings = savingsRaw || (!savLoading ? DEMO_SAVINGS : null)
 
   const optimize = useMutation({
     mutationFn: () => optimizerApi.optimize(sql).then(r => r.data),

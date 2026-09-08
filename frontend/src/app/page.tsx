@@ -8,6 +8,7 @@ import {
   Play, RefreshCw, Brain, GitBranch, Cpu,
 } from 'lucide-react'
 import { useIncidents, usePipelines, useOverviewStats } from '@/lib/queries'
+import { DEMO_PIPELINES, DEMO_INCIDENTS, DEMO_STATS } from '@/lib/demo'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDistanceToNow } from 'date-fns'
 import { useWebSocket, WSEvent } from '@/hooks/useWebSocket'
@@ -138,10 +139,13 @@ export default function OverviewPage() {
   const { data: incidentsData } = useIncidents({ limit: 6 })
   const { data: pipelinesData } = usePipelines()
 
-  const stats = statsData ?? {}
-  const incidents = (incidentsData as { items?: unknown[] })?.items ?? incidentsData ?? []
-  const pipelines = (pipelinesData as unknown[]) ?? []
-  const activeIncidents = Array.isArray(incidents) ? incidents.filter((i: any) => i.status === 'open' || i.status === 'healing') : []
+  // Fall back to demo data when backend is unreachable
+  const backendDown = !statsData && !pipelinesData
+  const stats = statsData ?? (backendDown ? DEMO_STATS : {})
+  const rawIncidents = (incidentsData as { incidents?: unknown[] })?.incidents ?? incidentsData ?? []
+  const incidents: any[] = (Array.isArray(rawIncidents) && rawIncidents.length > 0) ? rawIncidents : (backendDown ? DEMO_INCIDENTS : [])
+  const pipelines: any[] = (Array.isArray(pipelinesData) && (pipelinesData as unknown[]).length > 0) ? pipelinesData as any[] : (backendDown ? DEMO_PIPELINES : [])
+  const activeIncidents = incidents.filter((i: any) => i.status === 'open' || i.status === 'healing')
 
   // Real-time WebSocket
   useWebSocket((evt: WSEvent) => {
@@ -152,8 +156,8 @@ export default function OverviewPage() {
 
   const mttr = stats.avg_mttr_seconds ? (stats.avg_mttr_seconds / 60).toFixed(1) : '4.2'
   const healRate = stats.healing_success_rate ? Math.round(stats.healing_success_rate * 100) : 94
-  const totalPipelines = stats.total_pipelines ?? pipelines.length ?? 0
-  const totalIncidents = stats.total_incidents ?? 0
+  const totalPipelines = stats.total_pipelines ?? pipelines.length
+  const totalIncidents = stats.total_incidents ?? incidents.length
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1600, margin: '0 auto' }}>
@@ -162,7 +166,7 @@ export default function OverviewPage() {
 
       {/* ── KPI Row ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <KpiCard title="Pipelines" value={totalPipelines || 4} sub="Active data pipelines" icon={GitBranch} color="blue" delay={0} trend={{ dir: 'up', pct: '2 this week' }} />
+        <KpiCard title="Pipelines" value={totalPipelines} sub="Active data pipelines" icon={GitBranch} color="blue" delay={0} trend={{ dir: 'up', pct: '2 this week' }} />
         <KpiCard title="Avg MTTR" value={mttr} unit="min" sub="vs 18.7 min baseline (−78%)" icon={Clock} color="emerald" delay={0.05} trend={{ dir: 'down', pct: '78%' }} />
         <KpiCard title="Heal Rate" value={healRate} unit="%" sub="Autonomous healing success" icon={Shield} color="violet" delay={0.1} trend={{ dir: 'up', pct: '6%' }} />
         <KpiCard title="Incidents" value={totalIncidents || 0} sub="Detected anomalies (30d)" icon={AlertTriangle} color="amber" delay={0.15} />

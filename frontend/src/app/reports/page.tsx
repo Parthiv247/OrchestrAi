@@ -8,6 +8,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { DEMO_REPORTS, DEMO_DELIVERIES } from '@/lib/demo'
 import api from '@/lib/api'
 import { useToast } from '@/components/ui/Toaster'
 import { formatDistanceToNow } from 'date-fns'
@@ -242,8 +243,9 @@ export default function ReportsPage() {
     finally { setSendingId(null) }
   }
 
-  const reports: ScheduledReport[] = reportsData?.reports || []
-  const deliveries: Delivery[] = deliveriesData?.deliveries || []
+  const _reportsDown = !isLoading && !reportsData
+  const reports: ScheduledReport[] = reportsData?.reports?.length ? reportsData.reports : (_reportsDown ? (DEMO_REPORTS as unknown as ScheduledReport[]) : [])
+  const deliveries: Delivery[] = deliveriesData?.deliveries?.length ? deliveriesData.deliveries : (_reportsDown ? (DEMO_DELIVERIES as unknown as Delivery[]) : [])
   const enabledCount = reports.filter(r => r.enabled).length
   const sentCount    = deliveries.filter(d => d.status === 'sent').length
   const failedCount  = deliveries.filter(d => d.status === 'failed').length

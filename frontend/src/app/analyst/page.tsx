@@ -7,6 +7,7 @@ import {
   Check, Camera, Sparkles, Clock, Columns, MessageSquare,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { DEMO_QUERY_HISTORY } from '@/lib/demo'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useMutation } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
@@ -372,7 +373,12 @@ export default function AnalystPage() {
     setSessionId(crypto.randomUUID())
     try {
       const stored = localStorage.getItem('analyst_history')
-      if (stored) setSavedQueries(JSON.parse(stored))
+      if (stored) {
+        setSavedQueries(JSON.parse(stored))
+      } else {
+        // Seed demo query history so the page doesn't look empty
+        setSavedQueries(DEMO_QUERY_HISTORY as any[])
+      }
     } catch { /* ignore */ }
   }, [])
 

@@ -7,6 +7,7 @@ import {
   ChevronDown, Trash2, Activity, XCircle, Layers, GitBranch,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { DEMO_PIPELINES } from '@/lib/demo'
 import { SkeletonTable } from '@/components/ui/Skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api, { pipelineApi } from '@/lib/api'
@@ -395,7 +396,9 @@ export default function PipelinesPage() {
     queryFn: () => pipelineApi.getAll().then(r => r.data),
     refetchInterval: 30000,
   })
-  const pipelines: Pipeline[] = data?.pipelines || []
+  // Fall back to demo pipelines when backend is unreachable
+  const rawPipelines: Pipeline[] = data?.pipelines || (Array.isArray(data) ? data : [])
+  const pipelines: Pipeline[] = rawPipelines.length > 0 ? rawPipelines : (!isLoading ? DEMO_PIPELINES as Pipeline[] : [])
 
   const runningNow = pipelines.filter(p => p.last_run?.status === 'running').length
   const failed24h = pipelines.filter(p => {

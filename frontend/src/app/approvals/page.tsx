@@ -8,6 +8,7 @@ import {
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { useIncidents } from '@/lib/queries'
+import { DEMO_INCIDENTS } from '@/lib/demo'
 import type { Incident } from '@/lib/types'
 import { healingApi } from '@/lib/api'
 import { useToast } from '@/components/ui/Toaster'
@@ -98,14 +99,19 @@ export default function ApprovalsPage() {
   const [selected, setSelected] = useState<Incident | null>(null)
 
   useEffect(() => {
-    if (!incidentsPage?.incidents) return
-    setAllFetched(prev => {
-      if (pageOffset === 0) return incidentsPage.incidents
-      const existingIds = new Set(prev.map((i: Incident) => i.id))
-      const newOnes = incidentsPage.incidents.filter((i: Incident) => !existingIds.has(i.id))
-      return [...prev, ...newOnes]
-    })
-  }, [incidentsPage, pageOffset])
+    const fetched = incidentsPage?.incidents
+    if (fetched && fetched.length > 0) {
+      setAllFetched(prev => {
+        if (pageOffset === 0) return fetched
+        const existingIds = new Set(prev.map((i: Incident) => i.id))
+        const newOnes = fetched.filter((i: Incident) => !existingIds.has(i.id))
+        return [...prev, ...newOnes]
+      })
+    } else if (!isLoading && pageOffset === 0 && (!fetched || fetched.length === 0)) {
+      // Backend unreachable — show demo incidents
+      setAllFetched(DEMO_INCIDENTS as unknown as Incident[])
+    }
+  }, [incidentsPage, pageOffset, isLoading])
 
   const hasMore = incidentsPage?.has_more ?? false
 
