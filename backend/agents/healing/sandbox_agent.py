@@ -408,6 +408,56 @@ print(json.dumps({
             pass
         return False
 
+    # ── Standalone named test helpers (T01-T20 extractable units) ─────────────
+
+    def _test_no_destructive_sql(self, code: str) -> bool:
+        """T06 — Code must not contain DROP/DELETE/TRUNCATE statements."""
+        return not self._has_destructive_sql(code)
+
+    def _test_no_network_calls(self, code: str) -> bool:
+        """T07 — Code must not make outbound network requests."""
+        return not self._has_network_calls(code)
+
+    def _test_no_forbidden_imports(self, code: str) -> bool:
+        """T10 — Code must not use os.system, subprocess, exec, eval, etc."""
+        return not self._has_forbidden_calls(code)
+
+    def _test_fix_function_defined(self, code: str) -> bool:
+        """T11 — fix() function must be defined."""
+        return self._has_function(code, "fix")
+
+    def _test_verify_function_defined(self, code: str) -> bool:
+        """T12 — verify() function must be defined."""
+        return self._has_function(code, "verify")
+
+    def _test_no_bare_except(self, code: str) -> bool:
+        """T18 — No bare except clauses."""
+        return not self._has_bare_except(code)
+
+    def _test_uses_pandas(self, code: str) -> bool:
+        """T19 — Code should use pandas."""
+        return "import pandas" in code or "from pandas" in code
+
+    def _test_code_length(self, code: str, max_lines: int = 200) -> bool:
+        """T20 — Code must not exceed max_lines lines."""
+        return len(code.splitlines()) < max_lines
+
+    # ── Confidence + idempotency utilities ────────────────────────────────────
+
+    def _calculate_confidence(self, passed: int, total: int) -> float:
+        """Return confidence score as passed/total, clamped to [0, 1]."""
+        if total <= 0:
+            return 0.0
+        return min(1.0, passed / total)
+
+    def _test_idempotency_logic(self, rows1: int, rows2: int, tolerance: float = 0.01) -> bool:
+        """Return True when two execution row counts are within tolerance of each other."""
+        if rows1 == 0 and rows2 == 0:
+            return True
+        if rows1 == 0:
+            return False
+        return abs(rows1 - rows2) / rows1 <= tolerance
+
     # ── Mock data generators ───────────────────────────────────────────────────
 
     def _get_mock_data(self, pipeline_name: str) -> str:
@@ -508,6 +558,6 @@ print(json.dumps({
 
     def _synthetic_schema_drift_csv(self) -> str:
         """CSV with unexpected extra column and a renamed column — tests schema drift."""
-        header = "order_id,customer_id,new_column_added,total_price,legacy_field"
-        rows = [f"ORD-{i},CUST-{i%30},{i % 5},{round(10+i,2)},old_value_{i}" for i in range(50)]
+        header = "order_id,customer_id,new_column_added,total_price,legacy_field,unexpected_drift_col"
+        rows = [f"ORD-{i},CUST-{i%30},{i % 5},{round(10+i,2)},old_value_{i},drift_{i}" for i in range(50)]
         return header + "\n" + "\n".join(rows)

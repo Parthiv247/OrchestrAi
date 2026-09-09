@@ -378,10 +378,41 @@ class QueryAgent:
 
     # ── Chart suggestion ───────────────────────────────────────────────────────
 
-    def _infer_chart_type(self, columns: List[str], rows: List[List]) -> Dict[str, Any]:
-        """Heuristic chart type selection based on column semantics and data shape."""
-        col_lower = [c.lower() for c in columns]
-        n_rows    = len(rows)
+    def _infer_chart_type(self, columns, rows=None, *, row_count: int = None):
+        """Heuristic chart type selection based on column semantics and data shape.
+
+        Supports two calling conventions:
+        - Legacy:  _infer_chart_type(List[str], List[List])  → returns Dict
+        - New:     _infer_chart_type(List[Dict], row_count=int)  → returns str
+        """
+        # New API: columns is a list of {"name": ..., "type": ...} dicts
+        if columns and isinstance(columns[0], dict):
+            n_rows = row_count or 0
+            col_names = [c.get("name", "") for c in columns]
+            col_types = [c.get("type", "") for c in columns]
+            # Detect time columns by name or type
+            date_cols = [n for n, t in zip(col_names, col_types)
+                         if any(k in n.lower() for k in ["date", "time", "month", "year", "week", "hour"])
+                         or any(k in t.lower() for k in ["date", "time", "timestamp"])]
+            numeric_cols = [n for n, t in zip(col_names, col_types)
+                            if any(k in t.lower() for k in ["int", "float", "numeric", "number", "double", "decimal"])]
+            cat_cols = [n for n, t in zip(col_names, col_types)
+                        if any(k in t.lower() for k in ["text", "varchar", "char", "string", "str"])]
+            # Time series
+            if date_cols and numeric_cols and n_rows > 5:
+                return "line"
+            # Two numeric → scatter
+            if len(numeric_cols) >= 2 and n_rows > 10:
+                return "scatter"
+            # Category + numeric with few distinct values → pie or bar
+            if cat_cols and numeric_cols:
+                return "pie" if n_rows <= 10 else "bar"
+            # Fallback
+            return "bar"
+
+        # Legacy API
+        col_lower = [c.lower() for c in (columns or [])]
+        n_rows    = len(rows) if rows is not None else (row_count or 0)
         n_cols    = len(columns)
 
         # Detect column categories

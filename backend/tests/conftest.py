@@ -36,7 +36,8 @@ _stub_module(
 )
 
 # Stub chromadb
-_chroma = _stub_module("chromadb", Client=MagicMock(), HttpClient=MagicMock())
+_chroma = _stub_module("chromadb", Client=MagicMock(), HttpClient=MagicMock(), PersistentClient=MagicMock())
+_stub_module("chromadb.config", Settings=MagicMock())
 _stub_module("chromadb.utils", embedding_functions=MagicMock())
 _stub_module("chromadb.utils.embedding_functions", SentenceTransformerEmbeddingFunction=MagicMock())
 

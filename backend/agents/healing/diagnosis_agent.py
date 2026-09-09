@@ -398,8 +398,31 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
         return {"root_cause": text[:300], "confidence": 0.4, "affected_tables": [],
                 "suggested_fix_type": "manual_review"}
 
-    def _pattern_confidence_boost(self, anomaly_details: Dict, anomaly_type: str) -> float:
-        """Boost confidence when we have direct evidence (e.g. zero rows, error match)."""
+    def _fetch_recent_logs(self, pipeline_name: str, limit: int = 10) -> list:
+        """Fetch recent log entries for the pipeline. Returns [] on error (patchable in tests)."""
+        try:
+            import psycopg2
+            from ..db.session import DB_CONFIG  # noqa — best-effort
+            conn = psycopg2.connect(**DB_CONFIG)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT error_message FROM pipeline_runs "
+                    "WHERE pipeline_name = %s ORDER BY started_at DESC LIMIT %s",
+                    (pipeline_name, limit),
+                )
+                rows = cur.fetchall()
+            conn.close()
+            return [r[0] for r in rows if r[0]]
+        except Exception:
+            return []
+
+    def _pattern_confidence_boost(self, base_or_details, anomaly_type: str, error_text: str = "") -> float:
+        """Boost confidence when we have direct evidence.
+
+        Supports two calling conventions:
+        - Legacy:    _pattern_confidence_boost(anomaly_details_dict, anomaly_type)  → returns boost delta
+        - New:       _pattern_confidence_boost(base_confidence_float, anomaly_type, error_text)  → returns base + boost
+        """
         boosts = {
             "ZERO_LOAD": 0.15,
             "CONSECUTIVE_FAILURES": 0.10,
@@ -412,7 +435,12 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
             "SLA_BREACH": 0.10,
             "CHECKPOINT_FAILURE": 0.20,
         }
-        return boosts.get(anomaly_type, 0.0)
+        boost = boosts.get(anomaly_type, 0.0)
+        if isinstance(base_or_details, (int, float)):
+            # New signature: return base + boost
+            return min(1.0, float(base_or_details) + boost)
+        # Legacy signature: return boost delta only
+        return boost
 
     # ── Rule-based fallbacks ───────────────────────────────────────────────────
 

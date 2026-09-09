@@ -34,6 +34,11 @@ class LearningAgent:
         self._embed_fn = None
         self._init()
 
+    @property
+    def _chroma_ready(self) -> bool:
+        """True when ChromaDB is available (either via _chroma or injected collection)."""
+        return getattr(self, "_chroma", None) is not None or getattr(self, "collection", None) is not None
+
     # ── Initialization ─────────────────────────────────────────────────────────
 
     def _init(self):
@@ -68,11 +73,16 @@ class LearningAgent:
             logger.error("LearningAgent init failed: %s — RAG will be unavailable", e)
 
     def _collection(self, name: str):
-        if self._chroma is None:
+        # Allow tests to inject a mock collection directly via self.collection
+        if getattr(self, "collection", None) is not None:
+            return self.collection
+        chroma = getattr(self, "_chroma", None)
+        if chroma is None:
             raise RuntimeError("ChromaDB not initialized")
-        return self._chroma.get_or_create_collection(
+        embed_fn = getattr(self, "_embed_fn", None)
+        return chroma.get_or_create_collection(
             name=name,
-            embedding_function=self._embed_fn,
+            embedding_function=embed_fn,
             metadata={"hnsw:space": "cosine"},
         )
 
@@ -80,7 +90,10 @@ class LearningAgent:
 
     def store_fix(self, incident_state: Dict[str, Any]) -> str:
         """Embed and store a deployed fix with rich metadata."""
-        if self._chroma is None:
+        # Support both _chroma (normal) and collection (test injection)
+        chroma = getattr(self, "_chroma", None)
+        has_collection = getattr(self, "collection", None) is not None
+        if chroma is None and not has_collection:
             return ""
 
         doc_id = incident_state.get("incident_id") or str(uuid.uuid4())
@@ -131,12 +144,12 @@ class LearningAgent:
         return doc_id
 
     def recall_fix(self, root_cause: str, anomaly_type: str = "",
-                   db_platform: str = "") -> Optional[Dict[str, Any]]:
+                   db_platform: str = "") -> Optional[str]:
         """
         Search for the best matching past fix.
-        Returns None if no good match, or dict with fix_code and metadata.
+        Returns the fix_code string if a high-quality match is found, else None.
         """
-        if self._chroma is None:
+        if not self._chroma_ready:
             return None
 
         try:
@@ -173,24 +186,19 @@ class LearningAgent:
 
             meta = metas[best_idx] if metas else {}
 
-            # Extract fix_code from document (after fix_preview:)
+            # Post-query deprecation guard (in case the filter was not applied by mock/version)
+            if str(meta.get("deprecated", "false")).lower() == "true":
+                return None
+
+            # Extract fix_code from document (after fix_preview: in rich format,
+            # or use full document when stored directly as code)
             doc_text = docs[best_idx]
-            fix_code = ""
             if "fix_preview:" in doc_text:
                 fix_code = doc_text.split("fix_preview:", 1)[1].strip()
+            else:
+                fix_code = doc_text  # document IS the fix code (test / legacy format)
 
-            return {
-                "fix_code":        fix_code,
-                "similarity":      1.0 - best_distance,
-                "confidence":      "high" if best_distance < HIGH_QUALITY_THRESHOLD else "medium",
-                "anomaly_type":    meta.get("anomaly_type", ""),
-                "pipeline_name":   meta.get("pipeline_name", ""),
-                "db_platform":     meta.get("db_platform", ""),
-                "tests_passed":    int(meta.get("tests_passed", 0)),
-                "mttr_minutes":    float(meta.get("mttr_minutes", 0)),
-                "success_count":   int(meta.get("success_count", 1)),
-                "deployed_at":     meta.get("deployed_at", ""),
-            }
+            return fix_code
 
         except Exception as e:
             logger.warning("recall_fix failed: %s", e)
@@ -198,7 +206,7 @@ class LearningAgent:
 
     def record_fix_outcome(self, doc_id: str, success: bool):
         """Increment success/failure counter. Deprecate fix after MAX_DEPRECATED_FAILURES."""
-        if self._chroma is None or not doc_id:
+        if not self._chroma_ready or not doc_id:
             return
         try:
             col    = self._collection("pipeline_fixes")
@@ -226,7 +234,7 @@ class LearningAgent:
         feedback: int = 0,   # 1=thumbs_up, -1=thumbs_down, 0=none
     ) -> str:
         """Store a successful NL→SQL pair for future retrieval."""
-        if self._chroma is None:
+        if not self._chroma_ready:
             return ""
 
         doc_id = str(uuid.uuid4())
@@ -249,7 +257,7 @@ class LearningAgent:
 
     def recall_nl_query(self, question: str, n: int = 3) -> List[Dict[str, Any]]:
         """Find top-N similar past NL queries with their generated SQL."""
-        if self._chroma is None:
+        if not self._chroma_ready:
             return []
         try:
             col = self._collection("nl_queries")
@@ -277,7 +285,7 @@ class LearningAgent:
 
     def update_nl_feedback(self, doc_id: str, feedback: int):
         """Update thumbs up/down on a stored NL query."""
-        if self._chroma is None:
+        if not self._chroma_ready:
             return
         try:
             col    = self._collection("nl_queries")
@@ -296,7 +304,7 @@ class LearningAgent:
 
     def mttr_by_anomaly(self) -> Dict[str, float]:
         """Compute average MTTR (minutes) per anomaly type from stored fixes."""
-        if self._chroma is None:
+        if not self._chroma_ready:
             return {}
         try:
             col     = self._collection("pipeline_fixes")
@@ -328,7 +336,7 @@ class LearningAgent:
         This replaces the static SANDBOX_CONFIDENCE_THRESHOLD = 0.75 in the orchestrator
         so the routing adapts as the platform accumulates incident history.
         """
-        if self._chroma is None:
+        if not self._chroma_ready:
             return default
         try:
             col     = self._collection("pipeline_fixes")
@@ -359,7 +367,7 @@ class LearningAgent:
 
     def fix_success_rate(self) -> Dict[str, Any]:
         """Overall fix success rate and per-anomaly breakdown."""
-        if self._chroma is None:
+        if not self._chroma_ready:
             return {"overall": 0, "by_anomaly": {}}
         try:
             col     = self._collection("pipeline_fixes")
@@ -391,7 +399,7 @@ class LearningAgent:
 
     def get_learning_stats(self) -> Dict[str, Any]:
         """Summary stats for the /api/learning/stats endpoint."""
-        if self._chroma is None:
+        if not self._chroma_ready:
             return {"fixes_stored": 0, "queries_stored": 0, "mttr_avg_minutes": 0,
                     "success_rate_pct": 0, "top_anomalies": []}
         try:
@@ -403,16 +411,22 @@ class LearningAgent:
             top_anomalies = sorted(success.get("by_anomaly", {}).items(),
                                    key=lambda x: x[1], reverse=True)[:5]
             return {
-                "fixes_stored":      fix_count,
-                "queries_stored":    query_count,
-                "mttr_avg_minutes":  round(mttr_avg, 1),
-                "success_rate_pct":  success.get("overall", 0),
-                "top_anomalies":     [{"type": k, "success_rate": v} for k, v in top_anomalies],
-                "mttr_by_anomaly":   mttr_map,
+                "fixes_stored":       fix_count,
+                "rag_fixes_stored":   fix_count,
+                "total_fixes_stored": fix_count,
+                "queries_stored":     query_count,
+                "rag_queries_stored": query_count,
+                "avg_mttr":           round(mttr_avg, 1),
+                "mttr_avg_minutes":   round(mttr_avg, 1),
+                "total_outcomes":     success.get("total", 0),
+                "success_rate_pct":   success.get("overall", 0),
+                "top_anomalies":      [{"type": k, "success_rate": v} for k, v in top_anomalies],
+                "mttr_by_anomaly":    mttr_map,
             }
         except Exception as e:
             logger.warning("get_learning_stats failed: %s", e)
-            return {"fixes_stored": 0, "queries_stored": 0}
+            return {"fixes_stored": 0, "queries_stored": 0, "rag_fixes_stored": 0,
+                    "rag_queries_stored": 0, "avg_mttr": 0, "total_outcomes": 0}
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 

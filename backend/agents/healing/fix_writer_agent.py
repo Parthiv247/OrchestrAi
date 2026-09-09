@@ -514,7 +514,7 @@ class FixWriterAgent:
         steps = list(state.get("reasoning_steps") or [])
 
         # 1. Check RAG cache (with anomaly-type filter for higher precision)
-        cached = self.check_rag_cache(root_cause, anomaly_type)
+        cached = self._recall_from_rag(root_cause, anomaly_type)
         if cached and self._has_required_functions(cached):
             steps.append("FixWriterAgent: reusing cached fix from ChromaDB (similarity >90%)")
             return HealingAgentState(**{**state, "fix_code": cached, "fix_language": "python", "reasoning_steps": steps})
@@ -542,6 +542,10 @@ class FixWriterAgent:
             return "fix" in names and "verify" in names
         except SyntaxError:
             return False
+
+    def _recall_from_rag(self, root_cause: str, anomaly_type: str = "") -> Optional[str]:
+        """Alias for check_rag_cache — exists so tests can patch it cleanly."""
+        return self.check_rag_cache(root_cause, anomaly_type)
 
     def check_rag_cache(self, root_cause: str, anomaly_type: str = "") -> Optional[str]:
         if not HAS_CHROMA or self._chroma is None:

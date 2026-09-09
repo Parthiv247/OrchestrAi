@@ -391,7 +391,7 @@ async def learning_stats():
     """Return ChromaDB collection statistics."""
     from ...agents.learning.learning_agent import LearningAgent
     agent = LearningAgent()
-    return agent.get_stats()
+    return agent.get_learning_stats()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

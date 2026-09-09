@@ -88,7 +88,7 @@ ANTI_PATTERNS: List[tuple] = [
      "low", 10),
     # BigQuery-specific
     ("BQ_NO_PARTITION_FILTER",
-     r"\bFROM\s+`[\w.-]+`\b(?![\s\S]*\bWHERE\b[\s\S]*\b_PARTITIONDATE\b|\bpartition_date\b|\bevent_date\b)",
+     r"FROM\s+`[\w.\-]+`(?![\s\S]*\bWHERE\b[\s\S]*(?:_PARTITIONDATE|partition_date|event_date))",
      "BigQuery: query on partitioned table has no partition filter — will scan all partitions",
      "critical", 80),
     ("BQ_SELECT_EXCEPT",
@@ -409,9 +409,49 @@ class CostOptimizerAgent:
             logger.warning("Groq rewrite failed: %s", e)
         return None
 
+    # ── Dialect-specific patterns (only active for matching dialect) ──────────
+    _DIALECT_PATTERNS = {
+        "snowflake": {"SNOWFLAKE_NO_CLUSTERING", "SNOWFLAKE_NON_RESULT_CACHE"},
+        "bigquery":  {"BQ_NO_PARTITION_FILTER", "BQ_SELECT_EXCEPT"},
+        "redshift":  {"REDSHIFT_NO_SORTKEY"},
+    }
+    _DANGEROUS_KEYWORDS = {"DROP", "DELETE", "TRUNCATE", "ALTER", "INSERT", "UPDATE", "CREATE", "GRANT", "REVOKE"}
+
+    def _detect_anti_patterns(self, sql: str, db_dialect: str = "postgresql") -> list:
+        """Return list of anti-pattern dicts for the given SQL and dialect.
+
+        Each dict has keys: pattern, message, severity, cost_impact_pct.
+        Dialect-specific patterns (e.g. SNOWFLAKE_*) are only included when
+        the dialect matches.
+        """
+        findings = []
+        dialect_lower = (db_dialect or "").lower()
+        # Determine which dialect-specific pattern sets to exclude
+        excluded = set()
+        for d, patterns in self._DIALECT_PATTERNS.items():
+            if d != dialect_lower:
+                excluded.update(patterns)
+
+        for name, pattern, message, severity, cost_impact in ANTI_PATTERNS:
+            if name in excluded:
+                continue
+            if re.search(pattern, sql, re.IGNORECASE | re.DOTALL):
+                findings.append({
+                    "pattern":        name,
+                    "name":           name,  # legacy alias
+                    "message":        message,
+                    "severity":       severity,
+                    "cost_impact_pct": cost_impact,
+                })
+        return findings
+
     def optimize(self, sql: str, connection_id: Optional[str] = None,
                  db_dialect: str = "postgresql", context: str = "api") -> OptimizationResult:
-        """Public entry point."""
+        """Public entry point. Raises ValueError for dangerous DDL/DML SQL."""
+        sql_upper = sql.strip().upper()
+        for kw in self._DANGEROUS_KEYWORDS:
+            if re.search(r"\b" + kw + r"\b", sql_upper):
+                raise ValueError(f"dangerous SQL keyword '{kw}' is not permitted in optimize()")
         state: OptimizerState = {
             "original_sql":          sql,
             "connection_id":         connection_id,
