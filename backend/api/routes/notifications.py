@@ -365,7 +365,7 @@ def notification_history(limit: int = 50):
         ], "total": len(rows)}
     except Exception as e:
         logger.error("notification_history DB error: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch notification history: {e}")
+        return {"history": [], "total": 0}
 
 
 # ── Test channel ───────────────────────────────────────────────────────────────

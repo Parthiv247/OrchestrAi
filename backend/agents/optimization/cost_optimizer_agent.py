@@ -409,6 +409,48 @@ class CostOptimizerAgent:
             logger.warning("Groq rewrite failed: %s", e)
         return None
 
+    def get_total_savings(self) -> Dict[str, Any]:
+        """Return cumulative dollar savings and query count from DB, or zeros on error."""
+        try:
+            import psycopg2
+            conn = psycopg2.connect(**DB_CONFIG)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COUNT(*), COALESCE(SUM(dollar_savings), 0),
+                           COALESCE(AVG(savings_percent), 0)
+                    FROM query_optimizations
+                """)
+                row = cur.fetchone()
+            conn.close()
+            return {
+                "total_queries_optimized": int(row[0] or 0),
+                "total_dollar_savings":    float(row[1] or 0),
+                "avg_savings_percent":     float(row[2] or 0),
+            }
+        except Exception as e:
+            logger.warning("get_total_savings DB error: %s", e)
+            return {"total_queries_optimized": 0, "total_dollar_savings": 0.0, "avg_savings_percent": 0.0}
+
+    def get_optimization_history(self, limit: int = 20) -> list:
+        """Return last `limit` optimization records from DB, or [] on error."""
+        try:
+            import psycopg2, psycopg2.extras
+            conn = psycopg2.connect(**DB_CONFIG)
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, original_sql, optimized_sql, savings_percent,
+                           dollar_savings, context, created_at
+                    FROM query_optimizations
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (limit,))
+                rows = [dict(r) for r in cur.fetchall()]
+            conn.close()
+            return rows
+        except Exception as e:
+            logger.warning("get_optimization_history DB error: %s", e)
+            return []
+
     # ── Dialect-specific patterns (only active for matching dialect) ──────────
     _DIALECT_PATTERNS = {
         "snowflake": {"SNOWFLAKE_NO_CLUSTERING", "SNOWFLAKE_NON_RESULT_CACHE"},

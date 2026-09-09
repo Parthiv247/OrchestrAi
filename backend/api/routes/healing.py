@@ -381,7 +381,8 @@ async def healing_status():
         )
     except Exception as e:
         logger.error("healing_status failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return zeros gracefully when DB is unavailable
+        return HealingStatus(total_incidents=0, pending=0, approved=0, rejected=0, deployed=0)
 
 
 # ── Background task runners ────────────────────────────────────────────────────
