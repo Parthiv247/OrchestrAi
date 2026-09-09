@@ -260,7 +260,9 @@ async def get_savings():
     """Return cumulative savings and last 20 optimizations."""
     from ...agents.optimization.cost_optimizer_agent import CostOptimizerAgent
     agent = CostOptimizerAgent()
-    total = agent.get_total_savings()
+    total_info = agent.get_total_savings()
+    # get_total_savings() returns a dict; extract the float value
+    total_dollar = float(total_info.get("total_dollar_savings", 0.0)) if isinstance(total_info, dict) else float(total_info or 0.0)
     history = agent.get_optimization_history(limit=20)
 
     total_queries = len(history)
@@ -294,7 +296,7 @@ async def get_savings():
         logger.warning("savings breakdown query failed: %s", e)
 
     return SavingsSummary(
-        total_dollar_saved=round(total, 4),
+        total_dollar_saved=round(total_dollar, 4),
         total_queries_optimized=total_queries,
         avg_improvement_percent=round(avg_pct, 1),
         history=history,

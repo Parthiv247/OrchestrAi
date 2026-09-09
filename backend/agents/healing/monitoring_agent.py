@@ -308,7 +308,6 @@ class MonitoringAgent:
                 run_data.get("day_of_week") or 0,
                 run_data.get("source_type") or 0,
                 1 if run_data.get("status") == "success" else 0,
-                records_failed / max(records_loaded, 1),
             ]], dtype=float)
             pred_idx = self._classifier.predict(X)[0]
             label = self._label_encoder.inverse_transform([pred_idx])[0]
@@ -770,7 +769,6 @@ class MonitoringAgent:
                 run_dict.get("day_of_week") or 0,
                 run_dict.get("source_type") or 0,
                 1 if run_dict.get("status") == "success" else 0,
-                records_failed / max(records_loaded, 1),
             ]], dtype=float)
             return float(self._classifier.predict_proba(X).max())
         except Exception:

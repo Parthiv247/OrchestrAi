@@ -235,6 +235,29 @@ class TestChannelRequest(BaseModel):
     channel: str                # slack | email | pagerduty
 
 
+# ── Config endpoint ───────────────────────────────────────────────────────────
+
+@router.get("/config")
+def get_notifications_config():
+    """Return current notification channel configuration (safe — secrets masked)."""
+    try:
+        conn = get_sync_conn()
+        _ensure_tables(conn)
+        config = _get_notification_config(conn)
+        conn.close()
+        # Mask secrets
+        if config.get("pagerduty_key"):
+            config["pagerduty_key"] = "••••"
+        if config.get("email_smtp_pass"):
+            config["email_smtp_pass"] = "••••"
+        return {"config": config}
+    except Exception as e:
+        logger.warning("get_notifications_config error: %s", e)
+        return {"config": {"slack_webhook_url": "", "email_from": "", "email_smtp_host": "",
+                           "email_smtp_port": 587, "email_smtp_user": "", "pagerduty_key": "",
+                           "alert_rules": []}}
+
+
 # ── Dispatch endpoint ──────────────────────────────────────────────────────────
 
 @router.post("/dispatch")

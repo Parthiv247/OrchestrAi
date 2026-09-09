@@ -20,6 +20,15 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _import_warehouse():
+    try:
+        from backend.core.duckdb_warehouse import DuckDBWarehouse
+        return DuckDBWarehouse
+    except ImportError:
+        from core.duckdb_warehouse import DuckDBWarehouse
+        return DuckDBWarehouse
+
+
 class ETLRunner:
 
     def run_pipeline(self, pipeline_name: str, source_type: str,
@@ -81,7 +90,7 @@ class ETLRunner:
                 connect_timeout=5,
             )
 
-            from core.duckdb_warehouse import DuckDBWarehouse
+            DuckDBWarehouse = _import_warehouse()
             wh = DuckDBWarehouse().connect()
 
             # Get last watermark — tells us where the previous run stopped
@@ -136,7 +145,7 @@ class ETLRunner:
 
     def _run_from_seeded_warehouse(self, pipeline_name: str) -> Dict:
         """Read from seeded DuckDB and 'reload' with fresh timestamps — simulates real ETL."""
-        from core.duckdb_warehouse import DuckDBWarehouse
+        DuckDBWarehouse = _import_warehouse()
         wh = DuckDBWarehouse().connect()
 
         # Determine which table to use based on pipeline name
@@ -161,7 +170,27 @@ class ETLRunner:
         }
 
     def _run_csv_to_duckdb(self, pipeline_name: str, config: Dict) -> Dict:
-        """Read from sample_data parquets/CSVs if available."""
+        """Read from specified file path or sample_data parquets/CSVs if available."""
+        # If a specific file path is provided, use it
+        file_path = config.get("file_path")
+        if file_path and os.path.exists(file_path):
+            try:
+                if file_path.endswith(".parquet"):
+                    import duckdb
+                    con = duckdb.connect()
+                    total = con.execute(f"SELECT COUNT(*) FROM read_parquet('{file_path}')").fetchone()[0]
+                    con.close()
+                else:
+                    df = pd.read_csv(file_path)
+                    total = len(df)
+                return {
+                    "records_ingested": total,
+                    "records_loaded": total,
+                    "records_failed": 0,
+                }
+            except Exception as e:
+                logger.warning("Failed to read file %s: %s", file_path, e)
+
         sample_dir = os.path.join(os.path.dirname(__file__), '..', 'sample_data')
         total = 0
         try:
@@ -246,7 +275,7 @@ class ETLRunner:
     def _log_to_warehouse(self, pipeline_name: str, result: Dict):
         """Log this run's metrics to DuckDB pipeline_metrics_warehouse."""
         try:
-            from core.duckdb_warehouse import DuckDBWarehouse
+            DuckDBWarehouse = _import_warehouse()
             wh = DuckDBWarehouse().connect()
             wh.insert_batch("pipeline_metrics_warehouse", [{
                 "id": str(uuid.uuid4()),

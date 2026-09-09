@@ -116,7 +116,8 @@ class DuckDBWarehouse:
             return 0
         df = pd.DataFrame(records)
         try:
-            self._conn.execute(f"INSERT OR REPLACE INTO {table} SELECT * FROM df")
+            cols = ", ".join(f'"{c}"' for c in df.columns)
+            self._conn.execute(f"INSERT OR REPLACE INTO {table} ({cols}) SELECT {cols} FROM df")
             return len(records)
         except Exception as e:
             logger.error("DuckDB insert_batch failed: %s", e)
@@ -184,14 +185,16 @@ class DuckDBWarehouse:
         watermark_val should be the MAX(watermark_col) of the records just written.
         """
         try:
+            from datetime import datetime as _dt
+            _now = _dt.utcnow().isoformat()
             self._conn.execute("""
                 INSERT INTO etl_watermarks (pipeline_name, table_name, watermark_col, watermark_val, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (pipeline_name, table_name)
                 DO UPDATE SET watermark_col = excluded.watermark_col,
                               watermark_val = excluded.watermark_val,
-                              updated_at    = CURRENT_TIMESTAMP
-            """, [pipeline_name, table_name, watermark_col, watermark_val])
+                              updated_at    = excluded.updated_at
+            """, [pipeline_name, table_name, watermark_col, watermark_val, _now])
         except Exception as e:
             logger.warning("set_watermark failed: %s", e)
 

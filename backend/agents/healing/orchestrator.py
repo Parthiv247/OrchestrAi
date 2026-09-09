@@ -245,9 +245,24 @@ class HealingOrchestrator:
 
     # ── Public entry points ────────────────────────────────────────────────────
 
-    def run(self, pipeline_name: str, incident_id: Optional[str] = None) -> HealingAgentState:
-        """Synchronous entry point — runs the full healing workflow."""
+    def run(self, pipeline_name, incident_id: Optional[str] = None) -> HealingAgentState:
+        """Synchronous entry point — runs the full healing workflow.
+
+        pipeline_name can be a string OR a dict with keys:
+          pipeline_name, anomaly_type, anomaly_details (used by validation / test callers).
+        """
+        # Accept dict form: run({'pipeline_name': '...', 'anomaly_type': '...', ...})
+        extra_overrides: dict = {}
+        if isinstance(pipeline_name, dict):
+            d = pipeline_name
+            extra_overrides = {k: v for k, v in d.items() if k != 'pipeline_name'}
+            pipeline_name = d.get('pipeline_name', '')
+
         initial = self._make_initial_state(pipeline_name, incident_id)
+        # Apply any extra keys from dict form (e.g. anomaly_type, anomaly_details)
+        for k, v in extra_overrides.items():
+            if k in initial:
+                initial[k] = v
         try:
             return self.graph.invoke(initial)
         except Exception as e:
