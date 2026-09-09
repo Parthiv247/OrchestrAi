@@ -1,7 +1,6 @@
 'use client'
 
 export const dynamic = 'force-dynamic'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -10,7 +9,8 @@ import { GlobalSearch } from '@/components/ui/GlobalSearch'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { ThemeProvider } from '@/lib/theme'
 
-const inter = Inter({ subsets: ['latin'] })
+// System font fallback — avoids Google Fonts network fetch in CI/offline builds
+const inter = { className: '' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
