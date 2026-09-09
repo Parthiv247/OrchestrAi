@@ -152,7 +152,6 @@ export default function DbtPage() {
 
   const handleGenerate = async () => {
     setGenerateStep(0)
-    toast('dbt generation queued — Groq LLM is writing models (30–60s)', 'info')
     const interval = setInterval(() => {
       setGenerateStep(s => {
         if (s >= 3) { clearInterval(interval); return 3 }
@@ -161,10 +160,14 @@ export default function DbtPage() {
     }, 2500)
     try {
       await generateDbt.mutateAsync()
+      toast('dbt generation queued — Groq LLM is writing models (30–60s)', 'info')
       setTimeout(() => { refetchModels(); refetchRuns() }, 5000)
       setTimeout(() => { refetchModels(); refetchRuns(); toast('dbt models ready — file tree updated', 'success') }, 15000)
     } catch {
-      toast('dbt generation failed — check backend logs', 'error')
+      // Backend offline — show demo models so the page is still useful
+      toast('Demo mode — backend offline. Displaying pre-generated dbt models.', 'info')
+      // Trigger refetch so demo data from useDbtModels() populates the tree
+      setTimeout(() => { refetchModels(); refetchRuns() }, 500)
     } finally {
       clearInterval(interval)
       setGenerateStep(-1)

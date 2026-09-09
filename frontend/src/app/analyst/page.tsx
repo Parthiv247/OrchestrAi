@@ -376,8 +376,13 @@ export default function AnalystPage() {
       if (stored) {
         setSavedQueries(JSON.parse(stored))
       } else {
-        // Seed demo query history so the page doesn't look empty
-        setSavedQueries(DEMO_QUERY_HISTORY as any[])
+        // Seed demo query history — convert DEMO_QUERY_HISTORY shape
+        // ({ question, created_at }) to the page shape ({ q, ts })
+        const seeded = DEMO_QUERY_HISTORY.map((h: { question?: string; q?: string; created_at?: string; ts?: number }) => ({
+          q: h.question ?? h.q ?? '',
+          ts: h.ts ?? (h.created_at ? new Date(h.created_at).getTime() : Date.now()),
+        })).filter(h => h.q)
+        setSavedQueries(seeded)
       }
     } catch { /* ignore */ }
   }, [])
@@ -445,7 +450,7 @@ export default function AnalystPage() {
                 className="w-full flex items-center gap-2 h-9 px-2.5 rounded-lg text-left transition-colors hover:bg-white/5 group">
                 <span className="flex-1 min-w-0 text-xs truncate transition-colors" style={{ color: T.text }}>{h.q}</span>
                 <span className="text-[9px] flex-shrink-0" style={{ color: T.label }}>
-                  {formatDistanceToNow(h.ts, { addSuffix: false })}
+                  {h.ts && !isNaN(h.ts) ? formatDistanceToNow(new Date(h.ts), { addSuffix: false }) : 'recently'}
                 </span>
               </button>
             ))}
