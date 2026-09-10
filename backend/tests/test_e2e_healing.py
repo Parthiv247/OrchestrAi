@@ -14,7 +14,6 @@ These tests verify the full HTTP surface of the healing workflow:
 
 All external deps (Postgres, ChromaDB, Groq, Docker) are mocked via conftest.
 """
-import pytest
 
 
 # ── Healing trigger ────────────────────────────────────────────────────────────

@@ -10,10 +10,7 @@ GET  /api/optimize/savings      — cumulative savings + history
 import json
 import logging
 import os
-import re
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import psycopg2
 import psycopg2.extras
@@ -39,8 +36,8 @@ MARTS_DIR       = DBT_PROJECT_DIR / "models" / "marts"
 # ── Request / Response schemas ──────────────────────────────────────────────────
 
 class DbtGenerateRequest(BaseModel):
-    connection_id: Optional[str] = None
-    raw_tables: Optional[List[str]] = None
+    connection_id: str | None = None
+    raw_tables: list[str] | None = None
 
 
 class DbtGenerateResponse(BaseModel):
@@ -48,7 +45,7 @@ class DbtGenerateResponse(BaseModel):
     models_generated: int
     models_succeeded: int
     models_failed: int
-    mart_tables: List[str]
+    mart_tables: list[str]
     message: str
 
 
@@ -57,31 +54,31 @@ class DbtModelInfo(BaseModel):
     schema_layer: str
     file_path: str
     status: str
-    last_run: Optional[str]
-    sql_content: Optional[str] = None
+    last_run: str | None
+    sql_content: str | None = None
 
 
 class DbtRunRecord(BaseModel):
     id: str
-    triggered_by: Optional[str]
+    triggered_by: str | None
     models_succeeded: int
     models_failed: int
     tests_passed: int
     tests_failed: int
-    mart_tables_created: Optional[List[str]]
-    run_output: Optional[str] = None
+    mart_tables_created: list[str] | None
+    run_output: str | None = None
     created_at: str
 
 
 class OptimizeRequest(BaseModel):
     sql: str
-    connection_id: Optional[str] = None
+    connection_id: str | None = None
 
 
 class OptimizeResponse(BaseModel):
     original_sql: str
     optimized_sql: str
-    changes_made: List[str]
+    changes_made: list[str]
     original_cost: float
     optimized_cost: float
     savings_percent: float
@@ -89,16 +86,16 @@ class OptimizeResponse(BaseModel):
     execution_time_before_ms: int
     execution_time_after_ms: int
     estimated_improvement: str
-    optimization_id: Optional[str]
-    anti_patterns: List[Dict]
+    optimization_id: str | None
+    anti_patterns: list[dict]
 
 
 class SavingsSummary(BaseModel):
     total_dollar_saved: float
     total_queries_optimized: int
     avg_improvement_percent: float
-    history: List[Dict]
-    breakdown: Dict = {}
+    history: list[dict]
+    breakdown: dict = {}
 
 
 # ── dbt endpoints ──────────────────────────────────────────────────────────────
@@ -133,7 +130,7 @@ async def dbt_generate(req: DbtGenerateRequest, background_tasks: BackgroundTask
     )
 
 
-@router.get("/api/dbt/models", response_model=List[DbtModelInfo])
+@router.get("/api/dbt/models", response_model=list[DbtModelInfo])
 async def list_dbt_models():
     """List all dbt models in the project with their status."""
     models = []
@@ -170,7 +167,7 @@ async def list_dbt_models():
     return models
 
 
-@router.get("/api/dbt/runs", response_model=List[DbtRunRecord])
+@router.get("/api/dbt/runs", response_model=list[DbtRunRecord])
 async def list_dbt_runs():
     """List last 10 dbt run results."""
     try:
@@ -306,7 +303,7 @@ async def get_savings():
 
 # ── Background task runner ─────────────────────────────────────────────────────
 
-def _run_dbt_agent(run_id: str, raw_tables: Optional[List[str]]):
+def _run_dbt_agent(run_id: str, raw_tables: list[str] | None):
     try:
         from ...agents.transformation.dbt_modeling_agent import DbtModelingAgent
         agent = DbtModelingAgent()
@@ -339,7 +336,7 @@ def _run_dbt_agent(run_id: str, raw_tables: Optional[List[str]]):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _get_last_dbt_run() -> Optional[str]:
+def _get_last_dbt_run() -> str | None:
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         with conn.cursor() as cur:

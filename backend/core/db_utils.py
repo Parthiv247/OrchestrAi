@@ -1,6 +1,6 @@
 """Lightweight sync psycopg2 helper for routes that can't use async sessions."""
-import os
 import psycopg2
+
 from .config import get_settings
 
 

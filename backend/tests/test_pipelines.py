@@ -1,5 +1,4 @@
 """Pipeline endpoint smoke tests."""
-import pytest
 
 
 def test_list_pipelines_200(client):

@@ -2,7 +2,6 @@
 import csv
 import io
 import logging
-from typing import Dict, List, Optional
 
 import pandas as pd
 import requests
@@ -22,7 +21,7 @@ DEMO_CONFIG = {
 
 
 class GoogleSheetsSource:
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
         self._service = None
 
@@ -34,6 +33,7 @@ class GoogleSheetsSource:
             return None
         try:
             import json
+
             from google.oauth2.service_account import Credentials
             from googleapiclient.discovery import build
             creds_dict = json.loads(credentials_json) if isinstance(credentials_json, str) else credentials_json
@@ -49,8 +49,7 @@ class GoogleSheetsSource:
     def _fetch_public_csv(self, spreadsheet_id: str, gid: str = "0") -> pd.DataFrame:
         """Try Google Sheets export URL, fall back to configured fallback_csv_url."""
         export_url = (
-            "https://docs.google.com/spreadsheets/d/{}/export?format=csv&gid={}".format(
-                spreadsheet_id, gid)
+            f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
         )
         try:
             resp = requests.get(export_url, timeout=15, allow_redirects=True)
@@ -89,7 +88,7 @@ class GoogleSheetsSource:
         ]
         return pd.DataFrame(rows)
 
-    def test_connection(self) -> Dict:
+    def test_connection(self) -> dict:
         import time
         t0 = time.time()
         try:
@@ -102,7 +101,7 @@ class GoogleSheetsSource:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def extract(self, sheet_name: Optional[str] = None) -> pd.DataFrame:
+    def extract(self, sheet_name: str | None = None) -> pd.DataFrame:
         spreadsheet_id = self.config.get("spreadsheet_id", DEMO_CONFIG["spreadsheet_id"])
         auth_mode = self.config.get("auth_mode", "public")
 
@@ -111,7 +110,7 @@ class GoogleSheetsSource:
             return self._fetch_via_api(spreadsheet_id, sheet)
         return self._fetch_public_csv(spreadsheet_id, self.config.get("gid", "0"))
 
-    def get_all_sheets(self) -> List[str]:
+    def get_all_sheets(self) -> list[str]:
         service = self._get_service()
         if service is None:
             return [self.config.get("sheet_name", "Sheet1")]

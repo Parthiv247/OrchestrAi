@@ -1,5 +1,4 @@
 """Self-healing endpoint smoke tests."""
-import pytest
 
 
 def test_list_incidents_200(client):

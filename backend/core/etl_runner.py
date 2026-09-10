@@ -8,13 +8,14 @@ Supported pipeline types:
   - api_to_duckdb: REST API -> DuckDB warehouse
   - snowflake_load: DuckDB -> Snowflake (if credentials configured)
 """
-import os
 import logging
+import os
+import random
 import time
 import uuid
-import random
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def _import_warehouse():
 class ETLRunner:
 
     def run_pipeline(self, pipeline_name: str, source_type: str,
-                     config: Optional[Dict] = None) -> Dict[str, Any]:
+                     config: dict | None = None) -> dict[str, Any]:
         """
         Execute a real pipeline run.
         Returns: {records_ingested, records_loaded, records_failed, duration_seconds, status, error}
@@ -66,7 +67,7 @@ class ETLRunner:
                 "status": "failed", "error": str(e)
             }
 
-    def _run_postgres_to_duckdb(self, pipeline_name: str, config: Dict) -> Dict:
+    def _run_postgres_to_duckdb(self, pipeline_name: str, config: dict) -> dict:
         """
         Incremental PostgreSQL -> DuckDB ETL.
 
@@ -143,7 +144,7 @@ class ETLRunner:
             logger.info("PostgreSQL unavailable (%s), using seeded warehouse data", e)
             return self._run_from_seeded_warehouse(pipeline_name)
 
-    def _run_from_seeded_warehouse(self, pipeline_name: str) -> Dict:
+    def _run_from_seeded_warehouse(self, pipeline_name: str) -> dict:
         """Read from seeded DuckDB and 'reload' with fresh timestamps — simulates real ETL."""
         DuckDBWarehouse = _import_warehouse()
         wh = DuckDBWarehouse().connect()
@@ -169,7 +170,7 @@ class ETLRunner:
             "records_failed": random.randint(0, 5),
         }
 
-    def _run_csv_to_duckdb(self, pipeline_name: str, config: Dict) -> Dict:
+    def _run_csv_to_duckdb(self, pipeline_name: str, config: dict) -> dict:
         """Read from specified file path or sample_data parquets/CSVs if available."""
         # If a specific file path is provided, use it
         file_path = config.get("file_path")
@@ -224,7 +225,7 @@ class ETLRunner:
             "records_failed": 0,
         }
 
-    def _run_api_to_duckdb(self, pipeline_name: str, config: Dict) -> Dict:
+    def _run_api_to_duckdb(self, pipeline_name: str, config: dict) -> dict:
         """Simulate REST API fetch — returns realistic numbers."""
         records = random.randint(500, 2000)
         failed = random.randint(0, 10)
@@ -234,7 +235,7 @@ class ETLRunner:
             "records_failed": failed,
         }
 
-    def _run_sheets_to_duckdb(self, pipeline_name: str, config: Dict) -> Dict:
+    def _run_sheets_to_duckdb(self, pipeline_name: str, config: dict) -> dict:
         records = random.randint(200, 800)
         return {
             "records_ingested": records,
@@ -242,7 +243,7 @@ class ETLRunner:
             "records_failed": 0,
         }
 
-    def _run_generic(self, pipeline_name: str, source_type: str, config: Dict) -> Dict:
+    def _run_generic(self, pipeline_name: str, source_type: str, config: dict) -> dict:
         records = random.randint(1000, 10000)
         failed = random.randint(0, 20)
         return {
@@ -272,7 +273,7 @@ class ETLRunner:
             logger.warning("_load_to_warehouse failed: %s", e)
             return count
 
-    def _log_to_warehouse(self, pipeline_name: str, result: Dict):
+    def _log_to_warehouse(self, pipeline_name: str, result: dict):
         """Log this run's metrics to DuckDB pipeline_metrics_warehouse."""
         try:
             DuckDBWarehouse = _import_warehouse()

@@ -1,7 +1,6 @@
-from fastapi import Depends, Header, HTTPException, status
-from typing import Optional
+from fastapi import Depends, HTTPException, status
+
 from ..auth.jwt_handler import get_current_user
-from ..db.session import get_db
 
 
 async def get_tenant_id(current_user: dict = Depends(get_current_user)) -> str:

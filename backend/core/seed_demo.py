@@ -10,10 +10,10 @@ Seeds:
   3. healing_outcomes       — 45 records showing learning curve
   4. system_metrics         — cost savings counter
 """
+import logging
 import os
 import random
 import uuid
-import logging
 from datetime import datetime, timedelta
 
 import psycopg2
@@ -380,7 +380,6 @@ def seed_if_empty() -> None:
 
 
 if __name__ == "__main__":
-    import sys
     logging.basicConfig(level=logging.INFO)
     seed_if_empty()
     print("Seeding complete.")

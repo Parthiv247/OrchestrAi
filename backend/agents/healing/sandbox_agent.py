@@ -17,9 +17,9 @@ import ast
 import logging
 import os
 import re
-import time
 import tempfile
-from typing import Dict, Any, Tuple, List
+import time
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -96,7 +96,7 @@ class SandboxAgent:
 
     # ── Docker execution ───────────────────────────────────────────────────────
 
-    def execute_in_docker(self, fix_code: str, mock_data: str) -> Dict[str, Any]:
+    def execute_in_docker(self, fix_code: str, mock_data: str) -> dict[str, Any]:
         try:
             import docker
             client = docker.from_env()
@@ -107,7 +107,7 @@ class SandboxAgent:
             logger.warning("Docker execution failed, falling back to local sandbox: %s", e)
             return self._run_local_sandbox(fix_code, mock_data)
 
-    def _run_docker_container(self, client, fix_code: str, mock_data: str) -> Dict[str, Any]:
+    def _run_docker_container(self, client, fix_code: str, mock_data: str) -> dict[str, Any]:
         import docker
         runner_script = self._build_runner_script()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -119,7 +119,7 @@ class SandboxAgent:
                 f.write(mock_data)
 
             start = time.time()
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "stdout": "", "stderr": "", "exit_code": -1,
                 "timed_out": False, "duration_s": 0.0,
                 "output_rows": 0, "output_cols": [],
@@ -157,7 +157,7 @@ class SandboxAgent:
             self._parse_runner_output(result)
             return result
 
-    def _run_local_sandbox(self, fix_code: str, mock_data: str) -> Dict[str, Any]:
+    def _run_local_sandbox(self, fix_code: str, mock_data: str) -> dict[str, Any]:
         import subprocess
         runner = self._build_runner_script()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -165,7 +165,7 @@ class SandboxAgent:
                 with open(os.path.join(tmpdir, fname), "w") as f:
                     f.write(content)
             start  = time.time()
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "stdout": "", "stderr": "", "exit_code": -1,
                 "timed_out": False, "duration_s": 0.0,
                 "output_rows": 0, "output_cols": [],
@@ -242,7 +242,7 @@ print(json.dumps({
 }))
 '''
 
-    def _parse_runner_output(self, result: Dict[str, Any]):
+    def _parse_runner_output(self, result: dict[str, Any]):
         import json
         stdout = result.get("stdout", "")
         for line in reversed(stdout.splitlines()):
@@ -263,7 +263,7 @@ print(json.dumps({
                 except Exception:
                     pass
 
-    def _test_idempotency(self, fix_code: str, mock_data: str) -> Dict[str, Any]:
+    def _test_idempotency(self, fix_code: str, mock_data: str) -> dict[str, Any]:
         """Run fix twice; check that the second run produces same row count."""
         result1 = self.execute_in_docker(fix_code, mock_data)
         if result1.get("exit_code") != 0:
@@ -278,14 +278,14 @@ print(json.dumps({
 
     def run_test_suite(
         self,
-        exec_result:     Dict[str, Any],
+        exec_result:     dict[str, Any],
         fix_code:        str,
-        exec_empty:      Dict[str, Any],
-        exec_nulls:      Dict[str, Any],
-        exec_dupes:      Dict[str, Any],
-        exec_idempotent: Dict[str, Any],
-    ) -> Dict[str, bool]:
-        r: Dict[str, bool] = {}
+        exec_empty:      dict[str, Any],
+        exec_nulls:      dict[str, Any],
+        exec_dupes:      dict[str, Any],
+        exec_idempotent: dict[str, Any],
+    ) -> dict[str, bool]:
+        r: dict[str, bool] = {}
 
         # T01 — No syntax errors
         r["T01_no_syntax_errors"] = self._test_syntax(fix_code)

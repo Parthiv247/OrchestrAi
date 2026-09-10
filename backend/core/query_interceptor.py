@@ -3,11 +3,12 @@ Query Interceptor — wraps every SQL execution through the Cost Optimizer.
 Import and use execute_optimized() instead of running SQL directly.
 All optimizations are auto-logged to the query_optimizations table.
 """
-import logging
-import time
-import os
 import json
+import logging
+import os
+import time
 import uuid
+
 import psycopg2
 import psycopg2.extras
 

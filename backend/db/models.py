@@ -1,11 +1,21 @@
 """SQLAlchemy models for OrchestrAI — complete schema (all 40 tables)."""
-from datetime import datetime
-from sqlalchemy import (
-    Column, String, Integer, Boolean, Float, Text, JSON, ARRAY,
-    DateTime, ForeignKey, Enum as SAEnum, UniqueConstraint
-)
-from sqlalchemy.orm import relationship, DeclarativeBase
 import enum
+from datetime import datetime
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 class Base(DeclarativeBase):

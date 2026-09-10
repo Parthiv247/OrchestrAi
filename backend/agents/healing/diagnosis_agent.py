@@ -15,7 +15,7 @@ import logging
 import os
 import re
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 import httpx
 import psycopg2
@@ -132,7 +132,7 @@ class DiagnosisAgent:
 
     # ── Evidence builders ──────────────────────────────────────────────────────
 
-    def _pipeline_dependencies(self, pipeline_name: str) -> Dict[str, Any]:
+    def _pipeline_dependencies(self, pipeline_name: str) -> dict[str, Any]:
         """Static + dynamic dependency graph per pipeline."""
         deps = {
             "ingest_nyc_taxi": {
@@ -180,8 +180,8 @@ class DiagnosisAgent:
         })
 
     def build_evidence(
-        self, anomaly_type: str, anomaly_details: Dict[str, Any],
-        logs: str, lineage: Dict[str, Any], quality: str,
+        self, anomaly_type: str, anomaly_details: dict[str, Any],
+        logs: str, lineage: dict[str, Any], quality: str,
         schema: str = "", sla: str = "", upstream: str = "",
     ) -> str:
         return f"""=== ANOMALY ===
@@ -348,7 +348,7 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
 
     # ── Groq API with retry ────────────────────────────────────────────────────
 
-    def _call_groq_with_retry(self, evidence: str, max_retries: int = 3) -> Dict[str, Any]:
+    def _call_groq_with_retry(self, evidence: str, max_retries: int = 3) -> dict[str, Any]:
         if not GROQ_API_KEY:
             return self._rule_based_fallback(evidence)
 
@@ -388,7 +388,7 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
 
         return self._rule_based_fallback(evidence)
 
-    def _parse_json(self, text: str) -> Dict[str, Any]:
+    def _parse_json(self, text: str) -> dict[str, Any]:
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
             try:
@@ -402,7 +402,8 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
         """Fetch recent log entries for the pipeline. Returns [] on error (patchable in tests)."""
         try:
             import psycopg2
-            from ..db.session import DB_CONFIG  # noqa — best-effort
+
+            from ..db.session import DB_CONFIG
             conn = psycopg2.connect(**DB_CONFIG)
             with conn.cursor() as cur:
                 cur.execute(
@@ -444,7 +445,7 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
 
     # ── Rule-based fallbacks ───────────────────────────────────────────────────
 
-    def _rule_based_fallback_by_anomaly(self, anomaly_type: str, state: HealingAgentState) -> Dict:
+    def _rule_based_fallback_by_anomaly(self, anomaly_type: str, state: HealingAgentState) -> dict:
         """Structured fallback for every known anomaly type."""
         details = state.get("anomaly_details") or {}
         pipeline = state.get("pipeline_name", "unknown")
@@ -511,7 +512,7 @@ Details: {json.dumps(anomaly_details, indent=2, default=str)[:1000]}
             "confidence": 0.30, "suggested_fix_type": "manual_review", "urgency": "medium",
         })
 
-    def _rule_based_fallback(self, evidence: str) -> Dict[str, Any]:
+    def _rule_based_fallback(self, evidence: str) -> dict[str, Any]:
         """Fallback for all anomaly types based on evidence text."""
         ev = evidence.lower()
         for keyword, result in [

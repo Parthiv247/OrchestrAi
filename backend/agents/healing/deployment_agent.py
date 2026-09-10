@@ -14,14 +14,14 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Any
 
 import httpx
 import psycopg2
 import psycopg2.extras
 
-from .state import HealingAgentState
 from ...utils.email import send_email
+from .state import HealingAgentState
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ DB_CONFIG = {
 class DeploymentAgent:
     """Handles email approval workflow and production deployment."""
 
-    def send_approval_email(self, state: HealingAgentState) -> Tuple[bool, str]:
+    def send_approval_email(self, state: HealingAgentState) -> tuple[bool, str]:
         """Generate token, store it in DB, send approval email. Returns (success, token)."""
         incident_id = state.get("incident_id") or str(uuid.uuid4())
         token = str(uuid.uuid4())
@@ -119,7 +119,7 @@ class DeploymentAgent:
         fix_code = state.get("fix_code") or ""
         incident_id = state.get("incident_id") or ""
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "success": False,
             "pipeline_name": pipeline_name,
             "deployed_at": datetime.utcnow().isoformat(),
@@ -188,7 +188,7 @@ class DeploymentAgent:
         dag_file.write_text((dag_file.parent / f"{dag_file.name}.bak_{ts}").read_text())
         return True
 
-    def _inject_fix(self, fix_code: str, pipeline_name: str) -> Tuple[bool, str]:
+    def _inject_fix(self, fix_code: str, pipeline_name: str) -> tuple[bool, str]:
         dag_file = self._dag_file(pipeline_name)
         if not dag_file:
             return False, f"Unknown pipeline: {pipeline_name}"
@@ -212,7 +212,7 @@ class DeploymentAgent:
         dag_file.write_text(existing + block)
         return True, "Fix injected into DAG"
 
-    def _trigger_dag_run(self, pipeline_name: str, incident_id: str) -> Tuple[Optional[str], str]:
+    def _trigger_dag_run(self, pipeline_name: str, incident_id: str) -> tuple[str | None, str]:
         run_id = f"orchestrai_heal_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}"
         try:
             resp = httpx.post(
@@ -243,7 +243,7 @@ class DeploymentAgent:
         except Exception as e:
             logger.warning("Could not mark incident deployed: %s", e)
 
-    def _dag_file(self, pipeline_name: str) -> Optional[Path]:
+    def _dag_file(self, pipeline_name: str) -> Path | None:
         dag_map = {
             "ingest_nyc_taxi": "ingest_nyc_taxi.py",
             "ingest_ecommerce": "ingest_ecommerce.py",

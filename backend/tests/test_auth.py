@@ -1,5 +1,4 @@
 """Auth endpoint smoke tests."""
-import pytest
 
 
 def test_login_missing_body(client):

@@ -1,17 +1,18 @@
-import os
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from pathlib import Path
-from dotenv import load_dotenv
 
 # Load backend/.env with override=True (reload trigger) so its values win over Docker-injected vars
 # (e.g. POSTGRES_HOST=postgres from docker-compose → host.docker.internal from .env)
@@ -24,7 +25,9 @@ load_dotenv(dotenv_path=_env_path, override=True)
 try:
     from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
-    from .core.limiter import limiter as _limiter, RATE_LIMIT_AVAILABLE as _RATE_LIMIT_AVAILABLE
+
+    from .core.limiter import RATE_LIMIT_AVAILABLE as _RATE_LIMIT_AVAILABLE
+    from .core.limiter import limiter as _limiter
 except ImportError:
     _limiter = None
     _RATE_LIMIT_AVAILABLE = False
@@ -33,51 +36,50 @@ except ImportError:
 
 # ── Structured logging (must be first, before any module imports) ──────────────
 from .core.logging_config import configure_logging
+
 configure_logging()
 
 # Phase 1 — ETL Pipelines
 # pipeline.py (old Phase-1 router) is retained for reference but no longer registered.
 # All endpoints are now served by pipelines.py and healing.py.
-from .api.routes.pipelines import router as pipelines_router
+# ML Metrics — anomaly detection model metrics + retraining
+from .api.ml_metrics import router as ml_metrics_router
+
+# Phase 4 — Analytics + Insights
+from .api.routes.analytics import router as analytics_router
+
+# Auth
+from .api.routes.auth import router as auth_router
 from .api.routes.connectors import router as connectors_router
 
 # Phase 2 — Self-Healing Agents
 from .api.routes.healing import router as healing_router
 
-# Phase 3 — Transformation + Optimization
-from .api.routes.transformation import router as transformation_router
-
-# Phase 4 — Analytics + Insights
-from .api.routes.analytics import router as analytics_router
-
-# Platform Settings — team, API tokens, notifications, audit log
-from .api.routes.settings import router as settings_router
-
-# Data Quality — schema registry, drift detection, quality rules
-from .api.routes.quality import router as quality_router
-
-# Notifications — alert rules engine, dispatch, history
-from .api.routes.notifications import router as notifications_router
+# Learning Agent — outcome tracking, MTTR trend, strategy performance
+from .api.routes.learning_stats import router as learning_stats_router
 
 # Lineage — dbt manifest parsing, column-level lineage
 from .api.routes.lineage import router as lineage_router
 
+# Notifications — alert rules engine, dispatch, history
+from .api.routes.notifications import router as notifications_router
+from .api.routes.pipelines import router as pipelines_router
+
+# Data Quality — schema registry, drift detection, quality rules
+from .api.routes.quality import router as quality_router
+
 # Scheduled Reports — email digests, pipeline summaries
 from .api.routes.reports import router as reports_router
 
-# Learning Agent — outcome tracking, MTTR trend, strategy performance
-from .api.routes.learning_stats import router as learning_stats_router
+# Platform Settings — team, API tokens, notifications, audit log
+from .api.routes.settings import router as settings_router
 
-# ML Metrics — anomaly detection model metrics + retraining
-from .api.ml_metrics import router as ml_metrics_router
-
-# Auth
-from .api.routes.auth import router as auth_router
-
+# Phase 3 — Transformation + Optimization
+from .api.routes.transformation import router as transformation_router
 from .core.config import get_settings
 from .core.ws_manager import ws_manager
-from .db.session import async_engine
 from .db.models import Base
+from .db.session import async_engine
 
 settings = get_settings()
 

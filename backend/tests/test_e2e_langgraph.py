@@ -24,16 +24,15 @@ Scenarios covered:
 """
 import json
 import uuid
-import types
-import sys
 from datetime import datetime
-from typing import Any, Dict
-from unittest.mock import MagicMock, patch, PropertyMock
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+
 # ── State helper ───────────────────────────────────────────────────────────────
-def _state(pipeline: str = "ingest_nyc_taxi", **extra) -> Dict[str, Any]:
+def _state(pipeline: str = "ingest_nyc_taxi", **extra) -> dict[str, Any]:
     """Build a minimal HealingAgentState-compatible dict."""
     return {
         "pipeline_name": pipeline,
@@ -97,7 +96,7 @@ def _mock_groq_fix_code(anomaly_type: str = "ROW_COUNT_DROP") -> str:
     })
 
 
-def _mock_sandbox_pass() -> Dict[str, Any]:
+def _mock_sandbox_pass() -> dict[str, Any]:
     """Simulate a sandbox run where 20/20 tests pass."""
     tests = {f"T{str(i+1).zfill(2)}": "PASS" for i in range(20)}
     return {
@@ -108,7 +107,7 @@ def _mock_sandbox_pass() -> Dict[str, Any]:
     }
 
 
-def _mock_sandbox_fail() -> Dict[str, Any]:
+def _mock_sandbox_fail() -> dict[str, Any]:
     """Simulate a partial sandbox failure: 8/20 pass."""
     tests = {f"T{str(i+1).zfill(2)}": ("PASS" if i < 8 else "FAIL") for i in range(20)}
     return {
@@ -135,7 +134,6 @@ class TestMonitoringAgent:
 
     def test_classify_postgresql_error(self):
         """classify_error_message maps PG errors to correct anomaly types."""
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         assert agent.classify_error_message("could not connect to server: Connection refused") == "ZERO_LOAD"
         assert agent.classify_error_message("too many connections remaining") == "RATE_LIMIT_HIT"
@@ -143,40 +141,34 @@ class TestMonitoringAgent:
         assert agent.classify_error_message("deadlock detected in transaction") == "CONSECUTIVE_FAILURES"
 
     def test_classify_snowflake_errors(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         assert agent.classify_error_message("warehouse suspended due to inactivity") == "RATE_LIMIT_HIT"
         assert agent.classify_error_message("stream has become stale after 14 days") == "CDC_LAG"
         assert agent.classify_error_message("schema evolution detected in source table") == "SCHEMA_DRIFT"
 
     def test_classify_bigquery_errors(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         assert agent.classify_error_message("quota exceeded for project: bigquery-slot-quota") == "RATE_LIMIT_HIT"
         assert agent.classify_error_message("schema mismatch in destination table") == "SCHEMA_DRIFT"
         assert agent.classify_error_message("streaming buffer not available for table") == "CDC_LAG"
 
     def test_classify_mongodb_errors(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         assert agent.classify_error_message("oplog is too small to guarantee consistency") == "CDC_LAG"
         assert agent.classify_error_message("changestream cursor timeout after 30s") == "CDC_LAG"
 
     def test_classify_kafka_debezium_errors(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         assert agent.classify_error_message("offset out of range for partition 3") == "CHECKPOINT_FAILURE"
         assert agent.classify_error_message("consumer group rebalance triggered") == "INCREMENTAL_SYNC_FAILURE"
 
     def test_classify_unknown_returns_none(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         result = agent.classify_error_message("some totally unrecognised message abc123")
         assert result is None
 
     def test_row_drop_detection(self):
         """_check_row_count_drop returns ROW_COUNT_DROP when drop > 20%."""
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         # 50 records vs 7-day avg of 100 = 50% drop
         result = agent._check_row_count_drop(
@@ -189,7 +181,6 @@ class TestMonitoringAgent:
         assert result["anomaly_details"]["drop_pct"] == pytest.approx(0.5)
 
     def test_no_row_drop_under_threshold(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         # 90 vs 100 = 10% drop — below 20% threshold
         result = agent._check_row_count_drop("ingest_nyc_taxi", 90, 100)
@@ -197,7 +188,6 @@ class TestMonitoringAgent:
 
     def test_null_spike_detection(self):
         """_check_null_spike fires when null rate > 10% above baseline."""
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         result = agent._check_null_spike(
             pipeline_name="ingest_ecommerce",
@@ -209,7 +199,6 @@ class TestMonitoringAgent:
 
     def test_sla_breach_detection(self):
         """_check_sla_breach fires when duration > 3x SLA target."""
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         # kafka_consumer SLA = 300s; 1200s = 4x
         result = agent._check_sla_breach("kafka_consumer", duration_seconds=1200)
@@ -217,7 +206,6 @@ class TestMonitoringAgent:
         assert result["anomaly_type"] == "SLA_BREACH"
 
     def test_duplicate_spike_detection(self):
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         result = agent._check_duplicate_spike("ingest_nyc_taxi", duplicate_rate=0.12, baseline=0.01)
         assert result is not None
@@ -225,7 +213,6 @@ class TestMonitoringAgent:
 
     def test_healthy_pipeline_returns_none(self):
         """When all checks pass, check_pipeline returns None."""
-        from backend.agents.healing.monitoring_agent import MonitoringAgent
         agent = self._make_agent()
         with patch.object(agent, "_fetch_pipeline_run_data", return_value=None):
             result = agent.check_pipeline("ingest_nyc_taxi")
@@ -318,13 +305,15 @@ class TestFixWriterAgent:
 
     def test_template_map_covers_all_anomaly_types(self):
         """Every anomaly type in ANOMALY_TEMPLATE_MAP maps to a valid template."""
-        from backend.agents.healing.fix_writer_agent import ANOMALY_TEMPLATE_MAP, FIX_TEMPLATES
+        from backend.agents.healing.fix_writer_agent import (
+            ANOMALY_TEMPLATE_MAP,
+            FIX_TEMPLATES,
+        )
         for atype, template_key in ANOMALY_TEMPLATE_MAP.items():
             assert template_key in FIX_TEMPLATES, f"Template '{template_key}' missing for {atype}"
 
     def test_groq_fix_generation_row_drop(self):
         """FixWriter generates syntactically valid Python for ROW_COUNT_DROP."""
-        from backend.agents.healing.fix_writer_agent import FixWriterAgent
         agent = self._make_agent()
         state = _state(
             anomaly_type="ROW_COUNT_DROP",
@@ -363,19 +352,16 @@ class TestFixWriterAgent:
 
     def test_snowflake_platform_detected(self):
         """When root_cause mentions 'snowflake', db-specific template is selected."""
-        from backend.agents.healing.fix_writer_agent import FixWriterAgent
         agent = self._make_agent()
         fix_type = agent._infer_fix_type("schema_change", "snowflake schema evolution detected", {})
         assert fix_type == "snowflake_schema"
 
     def test_bigquery_platform_detected(self):
-        from backend.agents.healing.fix_writer_agent import FixWriterAgent
         agent = self._make_agent()
         fix_type = agent._infer_fix_type("data_quality", "bigquery type mismatch in streaming insert", {})
         assert fix_type == "bigquery_type"
 
     def test_mysql_cdc_platform_detected(self):
-        from backend.agents.healing.fix_writer_agent import FixWriterAgent
         agent = self._make_agent()
         fix_type = agent._infer_fix_type("cdc_lag", "mysql binlog format not row", {})
         assert fix_type == "mysql_cdc"
@@ -392,7 +378,6 @@ class TestSandboxAgent:
 
     def test_all_20_tests_defined(self):
         """SandboxAgent defines exactly 20 test methods T01–T20."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         test_methods = [m for m in dir(agent) if m.startswith("_test_")]
         # Should have at least T01–T20 equivalent methods
@@ -400,7 +385,6 @@ class TestSandboxAgent:
 
     def test_synthetic_null_csv(self):
         """_synthetic_null_csv generates a CSV with high null rate."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         csv_content = agent._synthetic_null_csv()
         lines = csv_content.strip().split("\n")
@@ -410,7 +394,6 @@ class TestSandboxAgent:
 
     def test_synthetic_duplicate_csv(self):
         """_synthetic_duplicate_csv generates a CSV with duplicate rows."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         csv_content = agent._synthetic_duplicate_csv()
         lines = csv_content.strip().split("\n")
@@ -420,7 +403,6 @@ class TestSandboxAgent:
 
     def test_synthetic_schema_drift_csv(self):
         """_synthetic_schema_drift_csv adds an unexpected column."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         csv_content = agent._synthetic_schema_drift_csv()
         header = csv_content.strip().split("\n")[0]
@@ -429,14 +411,12 @@ class TestSandboxAgent:
 
     def test_confidence_score_formula(self):
         """confidence_score = tests_passed / total_tests."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         score = agent._calculate_confidence(passed=18, total=20)
         assert score == pytest.approx(0.9)
 
     def test_idempotency_check_stable_output(self):
         """Idempotency passes when run 1 and run 2 produce same row count."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         # Simulate two runs both returning 100 rows
         result = agent._test_idempotency_logic(rows1=100, rows2=100)
@@ -444,7 +424,6 @@ class TestSandboxAgent:
 
     def test_idempotency_check_unstable_output(self):
         """Idempotency fails when rows differ by more than 1%."""
-        from backend.agents.healing.sandbox_agent import SandboxAgent
         agent = self._make_agent()
         result = agent._test_idempotency_logic(rows1=100, rows2=50)  # 50% different
         assert result is False
@@ -568,31 +547,26 @@ class TestOrchestratorRouting:
         return orch
 
     def test_route_should_heal_yes(self):
-        from backend.agents.healing.orchestrator import HealingOrchestrator
         orch = self._make_orchestrator()
         state = _state(anomaly_type="ROW_COUNT_DROP")
         assert orch._route_should_heal(state) == "heal"
 
     def test_route_should_heal_no_anomaly(self):
-        from backend.agents.healing.orchestrator import HealingOrchestrator
         orch = self._make_orchestrator()
         state = _state(anomaly_type=None)
         assert orch._route_should_heal(state) == "healthy"
 
     def test_route_sandbox_passed(self):
-        from backend.agents.healing.orchestrator import HealingOrchestrator
         orch = self._make_orchestrator()
         state = _state(confidence_score=0.95)
         assert orch._route_sandbox_passed(state) == "passed"
 
     def test_route_sandbox_failed(self):
-        from backend.agents.healing.orchestrator import HealingOrchestrator
         orch = self._make_orchestrator()
         state = _state(confidence_score=0.40)   # below 0.75 threshold
         assert orch._route_sandbox_passed(state) == "failed"
 
     def test_route_approved(self):
-        from backend.agents.healing.orchestrator import HealingOrchestrator
         orch = self._make_orchestrator()
         assert orch._route_approved(_state(approval_status="approved")) == "approved"
         assert orch._route_approved(_state(approval_status="rejected")) == "rejected"
@@ -600,7 +574,6 @@ class TestOrchestratorRouting:
 
     def test_full_healthy_pipeline_no_heal(self):
         """Healthy pipeline: monitoring returns None → graph terminates without healing."""
-        from backend.agents.healing.orchestrator import HealingOrchestrator
         orch = self._make_orchestrator()
         # Monitoring finds nothing
         orch.monitor.check_pipeline.return_value = None
@@ -671,21 +644,18 @@ class TestCostOptimizerAgent:
         return agent
 
     def test_select_star_detected(self):
-        from backend.agents.optimization.cost_optimizer_agent import CostOptimizerAgent
         agent = self._make_agent()
         findings = agent._detect_anti_patterns("SELECT * FROM orders WHERE created_at > '2024-01-01'", "postgresql")
         names = [f["pattern"] for f in findings]
         assert "SELECT_STAR" in names
 
     def test_no_limit_detected(self):
-        from backend.agents.optimization.cost_optimizer_agent import CostOptimizerAgent
         agent = self._make_agent()
         findings = agent._detect_anti_patterns("SELECT id, name FROM users", "postgresql")
         names = [f["pattern"] for f in findings]
         assert "NO_LIMIT" in names
 
     def test_snowflake_no_clustering_detected(self):
-        from backend.agents.optimization.cost_optimizer_agent import CostOptimizerAgent
         agent = self._make_agent()
         sql = "SELECT * FROM orders_fact WHERE date_trunc('month', created_at) = '2024-01-01'"
         findings = agent._detect_anti_patterns(sql, "snowflake")
@@ -693,7 +663,6 @@ class TestCostOptimizerAgent:
         assert "SNOWFLAKE_NO_CLUSTERING" in names
 
     def test_bigquery_no_partition_filter_detected(self):
-        from backend.agents.optimization.cost_optimizer_agent import CostOptimizerAgent
         agent = self._make_agent()
         sql = "SELECT * FROM `project.dataset.events`"
         findings = agent._detect_anti_patterns(sql, "bigquery")
@@ -701,13 +670,11 @@ class TestCostOptimizerAgent:
         assert "BQ_NO_PARTITION_FILTER" in names
 
     def test_dangerous_keywords_blocked(self):
-        from backend.agents.optimization.cost_optimizer_agent import CostOptimizerAgent
         agent = self._make_agent()
         with pytest.raises(ValueError, match="dangerous"):
             agent.optimize("DROP TABLE orders", db_dialect="postgresql")
 
     def test_like_leading_wildcard_detected(self):
-        from backend.agents.optimization.cost_optimizer_agent import CostOptimizerAgent
         agent = self._make_agent()
         findings = agent._detect_anti_patterns("SELECT id FROM users WHERE name LIKE '%smith'", "postgresql")
         names = [f["pattern"] for f in findings]
@@ -726,14 +693,13 @@ class TestQueryAgent:
 
     def test_dangerous_keywords_blocked(self):
         """QueryAgent blocks all DDL/DML keywords."""
-        from backend.agents.analytics.query_agent import QueryAgent, DANGEROUS_KEYWORDS
+        from backend.agents.analytics.query_agent import DANGEROUS_KEYWORDS
         agent = self._make_agent()
         for kw in ["DROP", "DELETE", "TRUNCATE", "ALTER", "INSERT", "UPDATE"]:
             assert kw in DANGEROUS_KEYWORDS
 
     def test_chart_type_inference_timeseries(self):
         """Time + numeric columns → line chart."""
-        from backend.agents.analytics.query_agent import QueryAgent
         agent = self._make_agent()
         cols = [{"name": "date", "type": "timestamp"}, {"name": "revenue", "type": "numeric"}]
         chart = agent._infer_chart_type(cols, row_count=30)
@@ -741,7 +707,6 @@ class TestQueryAgent:
 
     def test_chart_type_inference_categorical(self):
         """Category + numeric → bar chart."""
-        from backend.agents.analytics.query_agent import QueryAgent
         agent = self._make_agent()
         cols = [{"name": "region", "type": "text"}, {"name": "sales", "type": "numeric"}]
         chart = agent._infer_chart_type(cols, row_count=8)
@@ -749,7 +714,6 @@ class TestQueryAgent:
 
     def test_chart_type_inference_scatter(self):
         """Two numeric columns → scatter."""
-        from backend.agents.analytics.query_agent import QueryAgent
         agent = self._make_agent()
         cols = [{"name": "x", "type": "numeric"}, {"name": "y", "type": "numeric"}]
         chart = agent._infer_chart_type(cols, row_count=50)

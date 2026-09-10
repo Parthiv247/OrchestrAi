@@ -5,9 +5,9 @@ psycopg2 engine. Run BEFORE alembic so tables exist when migrations run.
 Called from startup.sh:
     python3 /app/backend/create_tables.py
 """
+import logging
 import os
 import sys
-import logging
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("create_tables")
@@ -29,7 +29,7 @@ try:
     engine = create_engine(_url, echo=False, pool_pre_ping=True, connect_args={"connect_timeout": 10})
 
     # Import all models so Base.metadata knows about them
-    from backend.db.models import Base  # noqa: F401
+    from backend.db.models import Base
 
     with engine.begin() as conn:
         Base.metadata.create_all(conn)

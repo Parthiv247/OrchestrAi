@@ -1,5 +1,4 @@
 """Connector Gallery endpoint smoke tests."""
-import pytest
 
 
 def test_get_catalog_200(client):

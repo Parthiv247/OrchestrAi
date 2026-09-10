@@ -11,20 +11,18 @@ QueryAgent — NL→SQL with live schema introspection, multi-dialect support, a
   - Explain node: plain-English SQL explanation via Groq
   - Conversation context: last 8 turns carried into prompt
 """
-import json
 import logging
 import os
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 import httpx
-import pandas as pd
 import psycopg2
 import psycopg2.extras
 import sqlparse
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ DANGEROUS_KEYWORDS = {"DROP", "DELETE", "TRUNCATE", "ALTER", "UPDATE", "INSERT",
                       "GRANT", "REVOKE", "CREATE", "REPLACE", "MERGE", "CALL"}
 
 # Schema cache: {conn_id: {schema_str, expires_at}}
-_SCHEMA_CACHE: Dict[str, Any] = {}
+_SCHEMA_CACHE: dict[str, Any] = {}
 SCHEMA_CACHE_TTL = 300  # 5 minutes
 
 SQL_SYSTEM_PROMPT = """You are an expert SQL analyst for OrchestrAI — a multi-tenant data platform.
@@ -93,27 +91,27 @@ Return ONLY raw SQL — no markdown, no backticks, no explanation."""
 
 class QueryState(TypedDict):
     question: str
-    connection_id: Optional[str]
+    connection_id: str | None
     user_role: str
     db_dialect: str                   # postgresql | snowflake | bigquery | mysql | redshift | duckdb
-    conversation_history: List[Dict[str, str]]
+    conversation_history: list[dict[str, str]]
 
-    schema: Optional[str]
-    generated_sql: Optional[str]
-    optimized_sql: Optional[str]
-    optimization_suggestions: Optional[List[str]]
-    validation_result: Optional[Dict[str, Any]]
+    schema: str | None
+    generated_sql: str | None
+    optimized_sql: str | None
+    optimization_suggestions: list[str] | None
+    validation_result: dict[str, Any] | None
 
-    results_df: Optional[Any]
-    rows: Optional[List[List]]
-    columns: Optional[List[str]]
+    results_df: Any | None
+    rows: list[list] | None
+    columns: list[str] | None
     rows_returned: int
     execution_time_ms: int
 
-    chart_config: Optional[Dict[str, Any]]
-    sql_explanation: Optional[str]
+    chart_config: dict[str, Any] | None
+    sql_explanation: str | None
     tokens_used: int
-    error: Optional[str]
+    error: str | None
 
 
 class QueryResult:
@@ -131,7 +129,7 @@ class QueryResult:
         self.tokens_used           = state.get("tokens_used") or 0
         self.error                 = state.get("error")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "question": self.question,
             "sql": self.sql,
@@ -219,8 +217,8 @@ class QueryAgent:
 
     def _node_validate_optimize(self, state: QueryState) -> QueryState:
         sql = state.get("generated_sql") or ""
-        validation: Dict[str, Any] = {"safe": True, "warnings": [], "errors": []}
-        suggestions: List[str] = []
+        validation: dict[str, Any] = {"safe": True, "warnings": [], "errors": []}
+        suggestions: list[str] = []
 
         # Safety check
         parsed = sqlparse.parse(sql)
@@ -360,7 +358,7 @@ class QueryAgent:
                 stats = {(r[0], r[1]): r[2] for r in cur.fetchall()}
             conn.close()
 
-            schema_lines: Dict[str, List[str]] = {}
+            schema_lines: dict[str, list[str]] = {}
             for schema, table, col, dtype, nullable, default in rows:
                 key = f"{schema}.{table}"
                 if key not in schema_lines:
@@ -476,7 +474,7 @@ class QueryAgent:
 
     # ── Groq helper ────────────────────────────────────────────────────────────
 
-    def _call_groq(self, system: str, user: str, max_tokens: int = 800) -> Optional[str]:
+    def _call_groq(self, system: str, user: str, max_tokens: int = 800) -> str | None:
         if not GROQ_API_KEY:
             return None
         try:
@@ -500,9 +498,9 @@ class QueryAgent:
             logger.warning("Groq call failed: %s", e)
             return None
 
-    def run(self, question: str, connection_id: Optional[str] = None,
+    def run(self, question: str, connection_id: str | None = None,
             user_role: str = "analyst", db_dialect: str = "postgresql",
-            history: Optional[List[Dict]] = None) -> QueryResult:
+            history: list[dict] | None = None) -> QueryResult:
         """Main public entry point."""
         initial_state: QueryState = {
             "question":             question,

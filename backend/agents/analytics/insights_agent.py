@@ -9,12 +9,12 @@ import os
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 import httpx
 import psycopg2
 import psycopg2.extras
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +45,11 @@ class InsightRecord(TypedDict):
 
 
 class InsightsState(TypedDict):
-    connection_id: Optional[str]
-    data_summary: Optional[Dict[str, Any]]
-    raw_insights: Optional[List[Dict]]
-    insights: Optional[List[InsightRecord]]
-    error: Optional[str]
+    connection_id: str | None
+    data_summary: dict[str, Any] | None
+    raw_insights: list[dict] | None
+    insights: list[InsightRecord] | None
+    error: str | None
 
 
 class InsightsAgent:
@@ -71,7 +71,7 @@ class InsightsAgent:
 
     def _node_collect(self, state: InsightsState) -> InsightsState:
         """Collect aggregated stats from every mart table (last 24h / 7d / 30d)."""
-        summary: Dict[str, Any] = {}
+        summary: dict[str, Any] = {}
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -145,7 +145,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
 
         ranked = sorted(raw, key=lambda x: SEVERITY_ORDER.get(x.get("severity","info"), 3))
 
-        records: List[InsightRecord] = []
+        records: list[InsightRecord] = []
         for item in ranked:
             rec = InsightRecord(
                 id=str(uuid.uuid4()),
@@ -165,13 +165,13 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def generate(self, connection_id: Optional[str] = None) -> List[InsightRecord]:
+    def generate(self, connection_id: str | None = None) -> list[InsightRecord]:
         initial = InsightsState(connection_id=connection_id, data_summary=None,
                                 raw_insights=None, insights=None, error=None)
         result = self.graph.invoke(initial)
         return result.get("insights") or []
 
-    def get_cached(self, connection_id: Optional[str] = None) -> List[InsightRecord]:
+    def get_cached(self, connection_id: str | None = None) -> list[InsightRecord]:
         """Return DB-cached insights if < 1 hour old."""
         try:
             conn = psycopg2.connect(**DB_CONFIG)
@@ -201,7 +201,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
             logger.warning("get_cached insights failed: %s", e)
             return []
 
-    def get_supporting_data(self, insight_id: str) -> List[Dict]:
+    def get_supporting_data(self, insight_id: str) -> list[dict]:
         """Run the supporting SQL for a specific insight and return rows."""
         try:
             conn = psycopg2.connect(**DB_CONFIG)
@@ -223,7 +223,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
 
     # ── Data collection helpers ────────────────────────────────────────────────
 
-    def _collect_trips(self, cur) -> Dict:
+    def _collect_trips(self, cur) -> dict:
         stats = {}
         try:
             cur.execute("""
@@ -259,7 +259,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
             stats["error"] = str(e)
         return stats
 
-    def _collect_ecommerce(self, cur) -> Dict:
+    def _collect_ecommerce(self, cur) -> dict:
         stats = {}
         try:
             cur.execute("""
@@ -290,7 +290,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
             stats["error"] = str(e)
         return stats
 
-    def _collect_customers(self, cur) -> Dict:
+    def _collect_customers(self, cur) -> dict:
         stats = {}
         try:
             cur.execute("""
@@ -311,7 +311,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
             stats["error"] = str(e)
         return stats
 
-    def _collect_zones(self, cur) -> Dict:
+    def _collect_zones(self, cur) -> dict:
         stats = {}
         try:
             cur.execute("""
@@ -329,7 +329,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
             stats["error"] = str(e)
         return stats
 
-    def _collect_pipeline_health(self, cur) -> Dict:
+    def _collect_pipeline_health(self, cur) -> dict:
         stats = {}
         try:
             cur.execute("""
@@ -346,7 +346,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
 
     # ── Persistence ────────────────────────────────────────────────────────────
 
-    def _save_insights(self, records: List[InsightRecord], connection_id: Optional[str]):
+    def _save_insights(self, records: list[InsightRecord], connection_id: str | None):
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             with conn.cursor() as cur:
@@ -367,7 +367,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
-    def _make_supporting_sql(self, item: Dict) -> str:
+    def _make_supporting_sql(self, item: dict) -> str:
         table = item.get("table", "marts.fct_trips")
         tw    = item.get("time_window", "7d")
         days  = {"24h": 1, "7d": 7, "30d": 30}.get(tw, 7)
@@ -381,7 +381,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
             return "SELECT zone_tier, COUNT(*) AS zones, SUM(total_trips) AS total_trips, ROUND(AVG(avg_fare)::NUMERIC,2) AS avg_fare FROM marts.dim_taxi_zones GROUP BY zone_tier ORDER BY total_trips DESC;"
         return f"SELECT * FROM {table} LIMIT 10;"
 
-    def _parse_json_array(self, text: str) -> List[Dict]:
+    def _parse_json_array(self, text: str) -> list[dict]:
         text = re.sub(r"```json\s*|```\s*", "", text).strip()
         match = re.search(r"\[.*\]", text, re.DOTALL)
         if match:
@@ -391,7 +391,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
                 pass
         return []
 
-    def _synthetic_insights(self, summary: Dict) -> List[Dict]:
+    def _synthetic_insights(self, summary: dict) -> list[dict]:
         """Fallback insights derived from collected data when Groq is unavailable."""
         trips_7d = summary.get("fct_trips", {}).get("7d", {})
         eco_7d   = summary.get("fct_ecommerce", {}).get("7d", {})
@@ -429,7 +429,7 @@ Return ONLY a valid JSON array of exactly 10 objects with this structure:
              "insight": f"Customer base segmented into VIP ({vip_cnt}), Regular, and Occasional tiers based on lifetime value.",
              "severity": "info", "metric": "3 segments", "time_window": "30d", "table": "marts.dim_customers"},
             {"title": "Taxi zone traffic distribution",
-             "insight": f"High-traffic zones drive the majority of revenue. Focus fleet allocation on top zones.",
+             "insight": "High-traffic zones drive the majority of revenue. Focus fleet allocation on top zones.",
              "severity": "opportunity", "metric": "zone concentration", "time_window": "30d", "table": "marts.dim_taxi_zones"},
             {"title": "E-commerce order volume trend",
              "insight": f"Monthly order volume of {eco_ord:,} units. Monitor for seasonal patterns and demand shifts.",

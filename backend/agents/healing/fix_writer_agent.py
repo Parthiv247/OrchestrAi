@@ -13,7 +13,6 @@ import json
 import logging
 import os
 import re
-from typing import Dict, Any, Optional
 
 import httpx
 
@@ -57,7 +56,7 @@ Write a self-contained Python fix function for a diagnosed pipeline issue.
 
 # ── Fix Templates ──────────────────────────────────────────────────────────────
 
-FIX_TEMPLATES: Dict[str, str] = {
+FIX_TEMPLATES: dict[str, str] = {
 
     "schema_change": '''import pandas as pd
 import re
@@ -543,11 +542,11 @@ class FixWriterAgent:
         except SyntaxError:
             return False
 
-    def _recall_from_rag(self, root_cause: str, anomaly_type: str = "") -> Optional[str]:
+    def _recall_from_rag(self, root_cause: str, anomaly_type: str = "") -> str | None:
         """Alias for check_rag_cache — exists so tests can patch it cleanly."""
         return self.check_rag_cache(root_cause, anomaly_type)
 
-    def check_rag_cache(self, root_cause: str, anomaly_type: str = "") -> Optional[str]:
+    def check_rag_cache(self, root_cause: str, anomaly_type: str = "") -> str | None:
         if not HAS_CHROMA or self._chroma is None:
             return None
         try:
@@ -578,7 +577,7 @@ class FixWriterAgent:
 
     # ── Private ────────────────────────────────────────────────────────────────
 
-    def _call_groq(self, root_cause: str, anomaly_type: str, state: HealingAgentState) -> Optional[str]:
+    def _call_groq(self, root_cause: str, anomaly_type: str, state: HealingAgentState) -> str | None:
         if not GROQ_API_KEY:
             return None
         db_platform = (state.get("anomaly_details") or {}).get("db_type", "postgresql")

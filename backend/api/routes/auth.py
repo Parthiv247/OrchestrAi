@@ -11,12 +11,11 @@ import logging
 import os
 import uuid
 from datetime import timedelta
-from typing import Optional
 
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Request, status, Depends
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 
 from ...auth.jwt_handler import create_access_token, get_current_user
 from ...core.config import get_settings
@@ -39,7 +38,7 @@ DB_CONFIG = {
 class RegisterRequest(BaseModel):
     email: str
     password: str
-    name: Optional[str] = None
+    name: str | None = None
     role: str = "analyst"        # admin | analyst | viewer
 
 
@@ -53,7 +52,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: str
     email: str
-    name: Optional[str]
+    name: str | None
     role: str
 
 
@@ -331,7 +330,7 @@ async def list_workspaces():
             rows = cur.fetchall()
         conn.close()
         return {"workspaces": [dict(r) for r in rows]}
-    except Exception as e:
+    except Exception:
         # Return default if table doesn't exist yet
         return {"workspaces": [{"id": "ws-default", "name": "Default Workspace", "slug": "default", "plan": "pro"}]}
 

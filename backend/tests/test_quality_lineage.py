@@ -1,5 +1,4 @@
 """Data Quality and Lineage endpoint smoke tests."""
-import pytest
 
 
 # ── Data Quality ──────────────────────────────────────────────────────────────

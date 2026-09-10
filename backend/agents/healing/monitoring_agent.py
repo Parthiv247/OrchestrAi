@@ -10,19 +10,19 @@ Supported anomaly types (2025 ETL-complete):
 Multi-database awareness: PostgreSQL, Snowflake, BigQuery, MySQL, MongoDB,
 Redshift, DuckDB — error signatures are normalised to the same anomaly types.
 """
+import logging
 import os
 import pickle
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
 
 try:
     import numpy as np
-    from sklearn.ensemble import IsolationForest, GradientBoostingClassifier
+    from sklearn.ensemble import GradientBoostingClassifier, IsolationForest
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
@@ -62,7 +62,7 @@ SLA_BREACH_MULTIPLIER  = 3.0    # duration > 3x SLA target
 PARTITION_SKEW_RATIO   = 5.0    # max_partition_rows / avg_partition_rows > 5x
 
 # SLA targets per pipeline (seconds)
-PIPELINE_SLA: Dict[str, int] = {
+PIPELINE_SLA: dict[str, int] = {
     "ingest_nyc_taxi":  1800,   # 30 min
     "ingest_ecommerce": 900,    # 15 min
     "dbt_run":          3600,   # 60 min
@@ -78,7 +78,7 @@ SPARK_MICRO_BATCH_DELAY_SECONDS  = 60     # Spark micro-batch > 1 min = anomaly
 STREAMING_BACKLOG_ROWS           = 100_000  # Unprocessed events backlog > 100K = CDC_LAG
 
 # Multi-DB error signature → anomaly type mapping
-DB_ERROR_SIGNATURES: List[Tuple[str, str]] = [
+DB_ERROR_SIGNATURES: list[tuple[str, str]] = [
     # PostgreSQL
     ("could not connect to server",          "ZERO_LOAD"),
     ("SSL connection has been closed",        "ZERO_LOAD"),
@@ -157,10 +157,10 @@ class MonitoringAgent:
     """Continuously watches all pipelines and detects anomalies using rules + ML."""
 
     def __init__(self):
-        self._model: Optional[Any] = None
-        self._scaler: Optional[Any] = None
-        self._classifier: Optional[Any] = None
-        self._label_encoder: Optional[Any] = None
+        self._model: Any | None = None
+        self._scaler: Any | None = None
+        self._classifier: Any | None = None
+        self._label_encoder: Any | None = None
         self._load_model()
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ class MonitoringAgent:
         # (bypassing all DB checks). Returns the pipeline_name for the caller to use.
         return pipeline_name
 
-    def check_pipeline(self, pipeline_name: str) -> Optional[HealingAgentState]:
+    def check_pipeline(self, pipeline_name: str) -> HealingAgentState | None:
         """Run all checks for one pipeline. Returns HealingAgentState if anomaly found."""
         # Allow tests to short-circuit all DB checks by patching _fetch_pipeline_run_data to None
         sentinel = self._fetch_pipeline_run_data(pipeline_name)
@@ -188,7 +188,7 @@ class MonitoringAgent:
             logger.error("MonitoringAgent.check_pipeline error for %s: %s", pipeline_name, e)
             return self._make_state(pipeline_name, "DB_ERROR", {"error": str(e)})
 
-    def run_all_checks(self) -> List[HealingAgentState]:
+    def run_all_checks(self) -> list[HealingAgentState]:
         """Check every pipeline; return list of anomalous states."""
         anomalies = []
         for name in PIPELINE_NAMES:
@@ -262,7 +262,7 @@ class MonitoringAgent:
             logger.error("train_model failed: %s", e)
             return False
 
-    def score_run(self, run_data: Dict[str, Any]) -> float:
+    def score_run(self, run_data: dict[str, Any]) -> float:
         """Score via calibrated decision_function. >= 0 normal, < 0 anomaly."""
         if not HAS_SKLEARN or self._model is None:
             return 0.0
@@ -286,7 +286,7 @@ class MonitoringAgent:
         except Exception:
             return 0.0
 
-    def classify_anomaly_type(self, run_data: Dict[str, Any]) -> str:
+    def classify_anomaly_type(self, run_data: dict[str, Any]) -> str:
         """Use classifier to predict specific anomaly type."""
         # Try error message classification first
         err = run_data.get("error_message") or ""
@@ -318,13 +318,13 @@ class MonitoringAgent:
 
     # ── Internal checks ────────────────────────────────────────────────────────
 
-    def _run_checks(self, cur, pipeline_name: str) -> Optional[HealingAgentState]:
+    def _run_checks(self, cur, pipeline_name: str) -> HealingAgentState | None:
         latest = self._latest_run(cur, pipeline_name)
         if latest is None:
             return None
 
         seven_day = self._seven_day_stats(cur, pipeline_name)
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "pipeline_name": pipeline_name,
             "latest_run": dict(latest),
             "db_type": self._detect_db_type(cur, pipeline_name),
@@ -440,7 +440,7 @@ class MonitoringAgent:
 
     def _check_row_count_drop(
         self, pipeline_name: str, current_count: float, avg_7d: float
-    ) -> Optional[HealingAgentState]:
+    ) -> HealingAgentState | None:
         """Return a HealingAgentState for ROW_COUNT_DROP when drop exceeds threshold."""
         if avg_7d <= 0:
             return None
@@ -454,7 +454,7 @@ class MonitoringAgent:
 
     def _check_null_spike(
         self, pipeline_name: str, null_rate: float, baseline_null_rate: float
-    ) -> Optional[HealingAgentState]:
+    ) -> HealingAgentState | None:
         """Return a HealingAgentState for NULL_SPIKE when null_rate exceeds baseline by threshold."""
         if baseline_null_rate < 0.02 and null_rate > baseline_null_rate + NULL_SPIKE_THRESHOLD:
             return self._make_state(
@@ -465,7 +465,7 @@ class MonitoringAgent:
 
     def _check_sla_breach(
         self, pipeline_name: str, duration_seconds: float
-    ) -> Optional[HealingAgentState]:
+    ) -> HealingAgentState | None:
         """Return a HealingAgentState for SLA_BREACH when duration exceeds SLA multiplier."""
         sla_target = PIPELINE_SLA.get(pipeline_name, 3600)
         if duration_seconds > sla_target * SLA_BREACH_MULTIPLIER:
@@ -478,7 +478,7 @@ class MonitoringAgent:
 
     # ── Specialised checks ─────────────────────────────────────────────────────
 
-    def _check_schema_drift(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _check_schema_drift(self, cur, pipeline_name: str) -> dict | None:
         """Detect column additions/removals by comparing error messages for schema-related errors."""
         cur.execute("""
             SELECT error_message FROM pipeline_runs
@@ -505,7 +505,7 @@ class MonitoringAgent:
         *,
         duplicate_rate: float = None,
         baseline: float = None,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Check for a duplicate spike.
 
         Supports two call signatures:
@@ -547,7 +547,7 @@ class MonitoringAgent:
             }
         return None
 
-    def _check_cdc_lag(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _check_cdc_lag(self, cur, pipeline_name: str) -> dict | None:
         """Detect CDC lag: time since last successful run > CDC_LAG_SECONDS."""
         cur.execute("""
             SELECT EXTRACT(EPOCH FROM (NOW() - MAX(completed_at))) AS lag_seconds
@@ -560,7 +560,7 @@ class MonitoringAgent:
             return {"cdc_lag_seconds": lag, "cdc_lag_threshold": CDC_LAG_SECONDS}
         return None
 
-    def _check_incremental_sync(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _check_incremental_sync(self, cur, pipeline_name: str) -> dict | None:
         """Detect incremental sync failure: records_loaded today < records_loaded yesterday's same hour."""
         cur.execute("""
             SELECT
@@ -579,7 +579,7 @@ class MonitoringAgent:
 
     # ── Streaming-specific checks ──────────────────────────────────────────────
 
-    def _check_flink_health(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _check_flink_health(self, cur, pipeline_name: str) -> dict | None:
         """
         Flink-specific checks:
           - Checkpoint timeout: latest completed_at - started_at > FLINK_CHECKPOINT_TIMEOUT_SECONDS
@@ -622,7 +622,7 @@ class MonitoringAgent:
             }
         return None
 
-    def _check_spark_streaming_health(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _check_spark_streaming_health(self, cur, pipeline_name: str) -> dict | None:
         """
         Spark Structured Streaming checks:
           - Micro-batch delay: if last batch took > SPARK_MICRO_BATCH_DELAY_SECONDS
@@ -676,7 +676,7 @@ class MonitoringAgent:
             }
         return None
 
-    def _check_cascading_failure(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _check_cascading_failure(self, cur, pipeline_name: str) -> dict | None:
         """Detect if multiple pipelines are failing simultaneously (cascading infra issue)."""
         if pipeline_name != "ingest_nyc_taxi":  # Only check once per cycle
             return None
@@ -707,7 +707,7 @@ class MonitoringAgent:
 
     # ── DB query helpers ───────────────────────────────────────────────────────
 
-    def _latest_run(self, cur, pipeline_name: str) -> Optional[Dict]:
+    def _latest_run(self, cur, pipeline_name: str) -> dict | None:
         cur.execute("""
             SELECT id, run_id, records_ingested, records_loaded, records_failed,
                    status, error_message, started_at, completed_at, duration_seconds
@@ -718,7 +718,7 @@ class MonitoringAgent:
         row = cur.fetchone()
         return dict(row) if row else None
 
-    def _seven_day_stats(self, cur, pipeline_name: str) -> Dict[str, float]:
+    def _seven_day_stats(self, cur, pipeline_name: str) -> dict[str, float]:
         cur.execute("""
             SELECT AVG(records_loaded)   AS avg_loaded,
                    AVG(records_ingested) AS avg_ingested,
@@ -756,7 +756,7 @@ class MonitoringAgent:
                 break
         return count
 
-    def _get_classifier_proba(self, run_dict: Dict) -> Optional[float]:
+    def _get_classifier_proba(self, run_dict: dict) -> float | None:
         if not HAS_SKLEARN or self._classifier is None:
             return None
         try:
@@ -778,7 +778,7 @@ class MonitoringAgent:
 
     def _make_state(
         self, pipeline_name: str, anomaly_type: str,
-        anomaly_details: Dict[str, Any], run_id: str = "",
+        anomaly_details: dict[str, Any], run_id: str = "",
     ) -> HealingAgentState:
         return HealingAgentState(
             pipeline_name=pipeline_name,

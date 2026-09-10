@@ -8,7 +8,6 @@ The same pattern can be extended to PagerDuty, MS Teams, or email (SendGrid).
 """
 import logging
 import os
-from typing import Optional
 
 import httpx
 
@@ -21,8 +20,8 @@ def send_slack_incident_alert(
     pipeline_name: str,
     anomaly_type: str,
     incident_id: str,
-    confidence: Optional[float] = None,
-    root_cause: Optional[str] = None,
+    confidence: float | None = None,
+    root_cause: str | None = None,
     app_url: str = "http://localhost:3001",
 ) -> bool:
     """

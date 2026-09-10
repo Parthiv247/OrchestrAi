@@ -7,12 +7,9 @@ Tests for ML components:
   E. Integration: learning/warehouse endpoints
 """
 import os
-import sys
 import tempfile
 import uuid
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,8 +29,8 @@ class TestDuckDBWarehouse:
 
     def _open(self, tmp_path):
         """Open a DuckDBWarehouse pointed at a temp file."""
-        from core.duckdb_warehouse import DuckDBWarehouse
         import core.duckdb_warehouse as _mod
+        from core.duckdb_warehouse import DuckDBWarehouse
 
         orig_path = _mod.WAREHOUSE_PATH
         _mod.WAREHOUSE_PATH = type(orig_path)(tmp_path)

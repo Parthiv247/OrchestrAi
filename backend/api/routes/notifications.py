@@ -10,7 +10,6 @@ POST /api/notifications/alert-rules/{id}/toggle — enable/disable
 GET  /api/notifications/history          — recent dispatched notifications
 POST /api/notifications/test             — test a specific channel (slack/email/pagerduty)
 """
-import json
 import logging
 import os
 import smtplib
@@ -18,7 +17,6 @@ import uuid
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -202,7 +200,7 @@ def _dispatch_notification(channel: str, config: dict, subject: str, body: str, 
     return False, f"Unknown channel: {channel}"
 
 
-def _record_history(conn, rule_id: Optional[str], channel: str, subject: str, body: str, status: str, error: str = ""):
+def _record_history(conn, rule_id: str | None, channel: str, subject: str, body: str, status: str, error: str = ""):
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO notification_history (id, rule_id, channel, subject, body, status, error_message, sent_at)
@@ -217,8 +215,8 @@ class DispatchRequest(BaseModel):
     subject: str
     body: str
     severity: str = "info"      # info | warning | critical | success
-    channels: List[str] = ["slack"]
-    rule_id: Optional[str] = None
+    channels: list[str] = ["slack"]
+    rule_id: str | None = None
 
 
 class AlertRuleRequest(BaseModel):

@@ -3,12 +3,12 @@ Schema introspection for QueryAgent.
 Queries PostgreSQL information_schema and schema_registry to build
 a rich textual schema description for LLM prompting.
 """
+import os
+from pathlib import Path
+
 import psycopg2
 import psycopg2.sql
-import os
-from typing import Dict, List
 from dotenv import load_dotenv
-from pathlib import Path
 
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
@@ -23,7 +23,7 @@ def get_sync_connection():
     )
 
 
-def get_schema_for_llm(schemas: List[str] = None) -> str:
+def get_schema_for_llm(schemas: list[str] = None) -> str:
     """Build a human-readable schema description for LLM prompting.
 
     Returns:
@@ -67,7 +67,7 @@ def get_schema_for_llm(schemas: List[str] = None) -> str:
             return _fallback_schema()
 
         # Group by table
-        tables: Dict[str, List] = {}
+        tables: dict[str, list] = {}
         for schema, table, col, dtype, nullable, desc, examples in rows:
             key = f"{schema}.{table}"
             tables.setdefault(key, []).append((col, dtype, nullable, desc, examples))
@@ -108,7 +108,7 @@ def get_schema_for_llm(schemas: List[str] = None) -> str:
 
         return "\n".join(lines)
 
-    except Exception as e:
+    except Exception:
         return _fallback_schema()
 
 
@@ -175,7 +175,7 @@ Approximate row counts:
 """
 
 
-def execute_sql_sync(sql: str, limit: int = 500) -> Dict:
+def execute_sql_sync(sql: str, limit: int = 500) -> dict:
     """Execute a SELECT query and return results as a dict with columns and rows."""
     try:
         conn = get_sync_connection()

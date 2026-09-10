@@ -1,6 +1,7 @@
 from enum import Enum
-from typing import List
-from fastapi import HTTPException, status, Depends
+
+from fastapi import Depends, HTTPException, status
+
 from .jwt_handler import get_current_user
 
 FORBIDDEN_SQL_KEYWORDS = {"DROP", "DELETE", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"}
@@ -19,7 +20,7 @@ ROLE_HIERARCHY = {
 }
 
 
-def require_role(roles: List[Role]):
+def require_role(roles: list[Role]):
     """Dependency that enforces role-based access."""
     async def role_checker(current_user: dict = Depends(get_current_user)):
         user_role = current_user.get("role")

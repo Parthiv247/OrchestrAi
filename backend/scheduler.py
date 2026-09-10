@@ -6,11 +6,10 @@ schedule, triggers its ETL job when enough time has elapsed since the last run.
 Intervals are derived from the pipeline's `schedule` value (cron presets emitted by
 the builder UI). No external scheduler/cron daemon required.
 """
-import re
-import time
-import uuid
 import logging
+import re
 import threading
+import uuid
 from datetime import datetime, timezone
 
 import psycopg2
@@ -52,7 +51,7 @@ def interval_minutes(schedule):
 
 def _tick():
     # Imported lazily to avoid a circular import at module load.
-    from .api.routes.pipelines import DB_CONFIG_ETL, _run_etl_job, _ensure_etl_tables
+    from .api.routes.pipelines import DB_CONFIG_ETL, _ensure_etl_tables, _run_etl_job
 
     conn = psycopg2.connect(**DB_CONFIG_ETL, connect_timeout=10)
     conn.autocommit = True

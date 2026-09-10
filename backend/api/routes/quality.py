@@ -13,17 +13,18 @@ POST /api/quality/snapshot            — take a schema snapshot (for drift comp
 GET  /api/quality/summary             — aggregate health summary
 """
 from __future__ import annotations
+
 import json
+import logging
 import os
 import uuid
-import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
-from psycopg2 import sql as _pgsql
 from fastapi import APIRouter, HTTPException
+from psycopg2 import sql as _pgsql
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ class QualityRuleRequest(BaseModel):
 
 # ── Helper: list user tables ───────────────────────────────────────────────────
 
-def _list_user_tables(conn) -> List[str]:
+def _list_user_tables(conn) -> list[str]:
     cur = conn.cursor()
     cur.execute("""
         SELECT table_name FROM information_schema.tables
@@ -165,7 +166,7 @@ def _list_user_tables(conn) -> List[str]:
     return [r[0] for r in cur.fetchall()]
 
 
-def _table_stats(conn, table: str) -> Dict[str, Any]:
+def _table_stats(conn, table: str) -> dict[str, Any]:
     """Return row_count + per-column null%, distinct count, min, max."""
     cur = conn.cursor()
     try:
@@ -184,7 +185,7 @@ def _table_stats(conn, table: str) -> Dict[str, Any]:
 
     column_stats = []
     for col_name, data_type, is_nullable in cols:
-        stat: Dict[str, Any] = {
+        stat: dict[str, Any] = {
             "name": col_name,
             "type": data_type,
             "nullable": is_nullable == "YES",
@@ -218,7 +219,7 @@ def _table_stats(conn, table: str) -> Dict[str, Any]:
     return {"row_count": row_count, "columns": column_stats}
 
 
-def _health_score(row_count: int, columns: List[Dict]) -> int:
+def _health_score(row_count: int, columns: list[dict]) -> int:
     """Simple 0-100 score based on null percentages."""
     if not columns:
         return 100
@@ -494,7 +495,6 @@ def run_rule(rule_id: str):
             elif rt == "freshness" and col:
                 max_ts = _safe_max(cur, t, col)
                 if max_ts:
-                    from datetime import timedelta
                     age_hours = (datetime.now(timezone.utc) - max_ts.replace(tzinfo=timezone.utc)).total_seconds() / 3600
                     if age_hours > threshold:
                         status = "failed"
@@ -619,8 +619,8 @@ def list_drift_events(resolved: bool = False):
 #  Regex-first scan + optional Groq LLM second pass for ambiguous columns
 # ══════════════════════════════════════════════════════════════════════════════
 
-import re as _re
 import os as _os
+import re as _re
 
 GROQ_API_KEY = _os.getenv("GROQ_API_KEY", "")  # set GROQ_API_KEY env var — never hardcode credentials
 

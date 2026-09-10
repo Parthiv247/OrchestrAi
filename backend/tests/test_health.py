@@ -1,5 +1,4 @@
 """Health check endpoint tests."""
-import pytest
 
 
 def test_health_returns_200(client):

@@ -13,9 +13,9 @@ LearningAgent — ChromaDB RAG for pipeline fixes and NL queries.
 import logging
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,9 @@ class LearningAgent:
         try:
             import chromadb
             from chromadb.config import Settings
-            from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+            from chromadb.utils.embedding_functions import (
+                SentenceTransformerEmbeddingFunction,
+            )
 
             self._embed_fn = SentenceTransformerEmbeddingFunction(
                 model_name="all-MiniLM-L6-v2"
@@ -88,7 +90,7 @@ class LearningAgent:
 
     # ── Pipeline Fixes ─────────────────────────────────────────────────────────
 
-    def store_fix(self, incident_state: Dict[str, Any]) -> str:
+    def store_fix(self, incident_state: dict[str, Any]) -> str:
         """Embed and store a deployed fix with rich metadata."""
         # Support both _chroma (normal) and collection (test injection)
         chroma = getattr(self, "_chroma", None)
@@ -144,7 +146,7 @@ class LearningAgent:
         return doc_id
 
     def recall_fix(self, root_cause: str, anomaly_type: str = "",
-                   db_platform: str = "") -> Optional[str]:
+                   db_platform: str = "") -> str | None:
         """
         Search for the best matching past fix.
         Returns the fix_code string if a high-quality match is found, else None.
@@ -255,7 +257,7 @@ class LearningAgent:
             logger.warning("store_nl_query failed: %s", e)
         return doc_id
 
-    def recall_nl_query(self, question: str, n: int = 3) -> List[Dict[str, Any]]:
+    def recall_nl_query(self, question: str, n: int = 3) -> list[dict[str, Any]]:
         """Find top-N similar past NL queries with their generated SQL."""
         if not self._chroma_ready:
             return []
@@ -302,7 +304,7 @@ class LearningAgent:
 
     # ── Analytics ─────────────────────────────────────────────────────────────
 
-    def mttr_by_anomaly(self) -> Dict[str, float]:
+    def mttr_by_anomaly(self) -> dict[str, float]:
         """Compute average MTTR (minutes) per anomaly type from stored fixes."""
         if not self._chroma_ready:
             return {}
@@ -310,7 +312,7 @@ class LearningAgent:
             col     = self._collection("pipeline_fixes")
             results = col.get(include=["metadatas"])
             metas   = results.get("metadatas") or []
-            totals: Dict[str, List[float]] = {}
+            totals: dict[str, list[float]] = {}
             for meta in metas:
                 if meta.get("deprecated") == "true":
                     continue
@@ -342,7 +344,7 @@ class LearningAgent:
             col     = self._collection("pipeline_fixes")
             results = col.get(include=["metadatas"])
             metas   = results.get("metadatas") or []
-            scores: List[float] = []
+            scores: list[float] = []
             for meta in metas:
                 if meta.get("deprecated") == "true":
                     continue
@@ -365,7 +367,7 @@ class LearningAgent:
             logger.warning("learned_threshold_for_anomaly failed: %s", e)
             return default
 
-    def fix_success_rate(self) -> Dict[str, Any]:
+    def fix_success_rate(self) -> dict[str, Any]:
         """Overall fix success rate and per-anomaly breakdown."""
         if not self._chroma_ready:
             return {"overall": 0, "by_anomaly": {}}
@@ -375,7 +377,7 @@ class LearningAgent:
             metas   = results.get("metadatas") or []
             total_success = 0
             total_runs    = 0
-            by_anomaly: Dict[str, Dict] = {}
+            by_anomaly: dict[str, dict] = {}
 
             for meta in metas:
                 atype   = meta.get("anomaly_type", "UNKNOWN")
@@ -397,7 +399,7 @@ class LearningAgent:
             logger.warning("fix_success_rate failed: %s", e)
             return {"overall": 0, "by_anomaly": {}}
 
-    def get_learning_stats(self) -> Dict[str, Any]:
+    def get_learning_stats(self) -> dict[str, Any]:
         """Summary stats for the /api/learning/stats endpoint."""
         if not self._chroma_ready:
             return {"fixes_stored": 0, "queries_stored": 0, "mttr_avg_minutes": 0,

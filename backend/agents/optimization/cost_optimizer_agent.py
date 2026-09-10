@@ -15,15 +15,13 @@ import json
 import logging
 import os
 import re
-import time
 import uuid
-from datetime import datetime
-from typing import TypedDict, Optional, List, Dict, Any
+from typing import Any, TypedDict
 
 import httpx
 import psycopg2
 import psycopg2.extras
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +43,7 @@ DB_CONFIG = {
 
 # ── Anti-pattern registry ──────────────────────────────────────────────────────
 # (name, regex, human message, severity, estimated_cost_impact_pct)
-ANTI_PATTERNS: List[tuple] = [
+ANTI_PATTERNS: list[tuple] = [
     # Universal
     ("SELECT_STAR",         r"\bSELECT\s+\*",
      "SELECT * fetches all columns — prunes to only needed columns",
@@ -140,32 +138,32 @@ Return ONLY valid JSON (no markdown fences):
 
 class OptimizerState(TypedDict):
     original_sql:         str
-    connection_id:        Optional[str]
+    connection_id:        str | None
     db_dialect:           str    # postgresql | snowflake | bigquery | mysql | redshift | duckdb
 
     # Analysis
-    explain_output:       Optional[str]
-    original_cost:        Optional[float]
-    original_time_ms:     Optional[int]
-    anti_patterns:        Optional[List[Dict[str, Any]]]
+    explain_output:       str | None
+    original_cost:        float | None
+    original_time_ms:     int | None
+    anti_patterns:        list[dict[str, Any]] | None
 
     # Rewrite
-    optimized_sql:        Optional[str]
-    changes_made:         Optional[List[str]]
-    estimated_improvement: Optional[str]
-    index_suggestions:    Optional[List[str]]
-    dialect_tips:         Optional[List[str]]
+    optimized_sql:        str | None
+    changes_made:         list[str] | None
+    estimated_improvement: str | None
+    index_suggestions:    list[str] | None
+    dialect_tips:         list[str] | None
 
     # Savings
-    optimized_cost:       Optional[float]
-    optimized_time_ms:    Optional[int]
-    savings_percent:      Optional[float]
-    dollar_savings:       Optional[float]
+    optimized_cost:       float | None
+    optimized_time_ms:    int | None
+    savings_percent:      float | None
+    dollar_savings:       float | None
 
     # Persistence
-    optimization_id:      Optional[str]
-    context:              Optional[str]
-    error:                Optional[str]
+    optimization_id:      str | None
+    context:              str | None
+    error:                str | None
 
 
 class OptimizationResult:
@@ -186,7 +184,7 @@ class OptimizationResult:
         self.optimization_id       = state.get("optimization_id") or ""
         self.error                 = state.get("error")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "optimization_id":          self.optimization_id,
             "original_sql":             self.original_sql,
@@ -263,7 +261,7 @@ class CostOptimizerAgent:
 
         # Rule-based quick wins before LLM
         sql_modified = sql
-        changes: List[str] = []
+        changes: list[str] = []
 
         # Add LIMIT if missing (non-aggregate)
         if not re.search(r"\bLIMIT\b", sql_modified, re.IGNORECASE) and \
@@ -272,8 +270,8 @@ class CostOptimizerAgent:
             changes.append("Added LIMIT 1000 to cap result set")
 
         # Call Groq for full rewrite if anti-patterns found
-        index_suggestions: List[str] = []
-        dialect_tips: List[str] = []
+        index_suggestions: list[str] = []
+        dialect_tips: list[str] = []
         estimated_improvement = ""
 
         if patterns and GROQ_API_KEY:
@@ -382,7 +380,7 @@ class CostOptimizerAgent:
         except Exception as e:
             return f"EXPLAIN failed: {e}", 0.0, 0
 
-    def _call_groq(self, system: str, user: str) -> Optional[Dict]:
+    def _call_groq(self, system: str, user: str) -> dict | None:
         try:
             resp = httpx.post(
                 "https://api.groq.com/openai/v1/chat/completions",
@@ -409,7 +407,7 @@ class CostOptimizerAgent:
             logger.warning("Groq rewrite failed: %s", e)
         return None
 
-    def get_total_savings(self) -> Dict[str, Any]:
+    def get_total_savings(self) -> dict[str, Any]:
         """Return cumulative dollar savings and query count from DB, or zeros on error."""
         try:
             import psycopg2
@@ -434,7 +432,8 @@ class CostOptimizerAgent:
     def get_optimization_history(self, limit: int = 20) -> list:
         """Return last `limit` optimization records from DB, or [] on error."""
         try:
-            import psycopg2, psycopg2.extras
+            import psycopg2
+            import psycopg2.extras
             conn = psycopg2.connect(**DB_CONFIG)
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
@@ -487,7 +486,7 @@ class CostOptimizerAgent:
                 })
         return findings
 
-    def optimize(self, sql: str, connection_id: Optional[str] = None,
+    def optimize(self, sql: str, connection_id: str | None = None,
                  db_dialect: str = "postgresql", context: str = "api") -> OptimizationResult:
         """Public entry point. Raises ValueError for dangerous DDL/DML SQL."""
         sql_upper = sql.strip().upper()

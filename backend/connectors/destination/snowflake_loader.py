@@ -3,7 +3,6 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -20,7 +19,7 @@ def _use_fallback() -> bool:
 # pipeline can load to a REAL Snowflake using saved-connection or .env creds.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _sf_connect(creds: Dict):
+def _sf_connect(creds: dict):
     """Open a Snowflake connection from a credentials dict (UI or .env shape)."""
     import snowflake.connector
     kwargs = dict(
@@ -37,14 +36,14 @@ def _sf_connect(creds: Dict):
     return snowflake.connector.connect(**kwargs)
 
 
-def has_snowflake_creds(creds: Optional[Dict]) -> bool:
+def has_snowflake_creds(creds: dict | None) -> bool:
     """True when we have enough to attempt a real Snowflake connection."""
     creds = creds or {}
     account = creds.get("account") or os.environ.get("SNOWFLAKE_ACCOUNT", "")
     return bool(account)
 
 
-def test_snowflake(creds: Dict):
+def test_snowflake(creds: dict):
     """Live connection test. Returns (status, message) matching _test_connector."""
     try:
         conn = _sf_connect(creds)
@@ -57,7 +56,7 @@ def test_snowflake(creds: Dict):
         return "error", str(e)[:200]
 
 
-def load_to_snowflake(creds: Dict, table: str, columns: List[str], rows: List,
+def load_to_snowflake(creds: dict, table: str, columns: list[str], rows: list,
                       mode: str = "full_refresh"):
     """
     Bulk-load rows into Snowflake via write_pandas (PUT + COPY INTO under the hood).
@@ -92,7 +91,7 @@ class SnowflakeLoader:
     SNOWFLAKE_ACCOUNT is not set in environment.
     """
 
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: dict | None = None):
         self.config = config or {}
         self._sf_conn = None
         self._pg_conn = None
@@ -137,13 +136,13 @@ class SnowflakeLoader:
             pg.commit()
         else:
             sf = self._get_snowflake()
-            sf.cursor().execute("CREATE SCHEMA IF NOT EXISTS {}".format(schema))
+            sf.cursor().execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
 
     def _pg_schema(self) -> str:
         return "snowflake_dest"
 
     def _pg_qualified(self, table_name: str) -> str:
-        return '"snowflake_dest"."{}"'.format(table_name.lower())
+        return f'"snowflake_dest"."{table_name.lower()}"'
 
     # ─── Table creation ────────────────────────────────────────────────────────
 
@@ -168,10 +167,9 @@ class SnowflakeLoader:
     def _pg_create_table(self, df: pd.DataFrame, table_name: str):
         pg = self._get_postgres()
         cols = ", ".join(
-            '"{}" {}'.format(c, self._pg_type(df[c].dtype)) for c in df.columns
+            f'"{c}" {self._pg_type(df[c].dtype)}' for c in df.columns
         )
-        ddl = 'CREATE TABLE IF NOT EXISTS {qualified} ({cols}, "_SOURCE" TEXT, "_INGESTED_AT" TIMESTAMPTZ, "_RUN_ID" TEXT)'.format(
-            qualified=self._pg_qualified(table_name), cols=cols)
+        ddl = f'CREATE TABLE IF NOT EXISTS {self._pg_qualified(table_name)} ({cols}, "_SOURCE" TEXT, "_INGESTED_AT" TIMESTAMPTZ, "_RUN_ID" TEXT)'
         with pg.cursor() as cur:
             cur.execute(ddl)
         pg.commit()
@@ -181,7 +179,7 @@ class SnowflakeLoader:
         sf.cursor().execute(
             "CREATE TABLE IF NOT EXISTS {}.{} ({}, _SOURCE VARCHAR, _INGESTED_AT TIMESTAMPTZ, _RUN_ID VARCHAR)".format(
                 schema, table_name.upper(),
-                ", ".join('"{}" VARCHAR'.format(c.upper()) for c in df.columns),
+                ", ".join(f'"{c.upper()}" VARCHAR' for c in df.columns),
             )
         )
 
@@ -200,14 +198,14 @@ class SnowflakeLoader:
             with pg.cursor() as cur:
                 cur.execute(
                     "SELECT to_regclass(%s)",
-                    ('"snowflake_dest"."{}"'.format(table_name.lower()),),
+                    (f'"snowflake_dest"."{table_name.lower()}"',),
                 )
                 _r = cur.fetchone()
                 return _r is not None and _r[0] is not None
         else:
             sf = self._get_snowflake()
             cur = sf.cursor()
-            cur.execute("SHOW TABLES LIKE '{}' IN SCHEMA {}".format(table_name.upper(), schema))
+            cur.execute(f"SHOW TABLES LIKE '{table_name.upper()}' IN SCHEMA {schema}")
             return cur.fetchone() is not None
 
     def get_row_count(self, table_name: str, schema: str = "RAW") -> int:
@@ -215,20 +213,20 @@ class SnowflakeLoader:
             if _use_fallback():
                 pg = self._get_postgres()
                 with pg.cursor() as cur:
-                    cur.execute('SELECT COUNT(*) FROM {}'.format(self._pg_qualified(table_name)))
+                    cur.execute(f'SELECT COUNT(*) FROM {self._pg_qualified(table_name)}')
                     _r = cur.fetchone()
                     return _r[0] if _r else 0
             else:
                 sf = self._get_snowflake()
                 cur = sf.cursor()
-                cur.execute("SELECT COUNT(*) FROM {}.{}".format(schema, table_name.upper()))
+                cur.execute(f"SELECT COUNT(*) FROM {schema}.{table_name.upper()}")
                 _r = cur.fetchone()
                 return _r[0] if _r else 0
         except Exception:
             return 0
 
     def append(self, df: pd.DataFrame, table_name: str, schema: str = "RAW",
-                source: str = "unknown", run_id: Optional[str] = None) -> int:
+                source: str = "unknown", run_id: str | None = None) -> int:
         if df.empty:
             return 0
         run_id = run_id or str(uuid.uuid4())
@@ -238,7 +236,7 @@ class SnowflakeLoader:
         return self._sf_write(df, table_name, schema)
 
     def upsert(self, df: pd.DataFrame, table_name: str, primary_key: str,
-               schema: str = "RAW", source: str = "unknown", run_id: Optional[str] = None) -> int:
+               schema: str = "RAW", source: str = "unknown", run_id: str | None = None) -> int:
         if df.empty:
             return 0
         run_id = run_id or str(uuid.uuid4())
@@ -251,14 +249,14 @@ class SnowflakeLoader:
         import psycopg2.extras
         pg = self._get_postgres()
         cols = list(df.columns)
-        col_str = ", ".join('"{}"'.format(c) for c in cols)
+        col_str = ", ".join(f'"{c}"' for c in cols)
         rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
         qualified = self._pg_qualified(table_name)
         try:
             with pg.cursor() as cur:
                 psycopg2.extras.execute_values(
                     cur,
-                    'INSERT INTO {} ({}) VALUES %s'.format(qualified, col_str),
+                    f'INSERT INTO {qualified} ({col_str}) VALUES %s',
                     rows,
                 )
             pg.commit()
@@ -272,13 +270,12 @@ class SnowflakeLoader:
         import psycopg2.extras
         pg = self._get_postgres()
         cols = list(df.columns)
-        col_str = ", ".join('"{}"'.format(c) for c in cols)
+        col_str = ", ".join(f'"{c}"' for c in cols)
         update_str = ", ".join(
-            '"{c}" = EXCLUDED."{c}"'.format(c=c) for c in cols if c != primary_key
+            f'"{c}" = EXCLUDED."{c}"' for c in cols if c != primary_key
         )
         qualified = self._pg_qualified(table_name)
-        sql = 'INSERT INTO {q} ({cols}) VALUES %s ON CONFLICT ("{pk}") DO UPDATE SET {upd}'.format(
-            q=qualified, cols=col_str, pk=primary_key, upd=update_str)
+        sql = f'INSERT INTO {qualified} ({col_str}) VALUES %s ON CONFLICT ("{primary_key}") DO UPDATE SET {update_str}'
         rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
         try:
             with pg.cursor() as cur:
@@ -317,7 +314,7 @@ class SnowflakeLoader:
         df.columns = [c.upper() for c in df.columns]
         pk = primary_key.upper()
         if pk not in df.columns:
-            raise ValueError("primary_key '{}' not found in dataframe columns".format(primary_key))
+            raise ValueError(f"primary_key '{primary_key}' not found in dataframe columns")
 
         # Dedupe within the batch — MERGE errors if many source rows match one target row.
         df = df.drop_duplicates(subset=[pk], keep="last")
@@ -327,47 +324,47 @@ class SnowflakeLoader:
         df = self.add_surrogate_key(df, key_cols=hash_cols, key_name="_ROW_HASH")
 
         tbl = table_name.upper()
-        stage = "_STAGE_{}".format(tbl)
+        stage = f"_STAGE_{tbl}"
         db = self.config.get("database") or os.environ.get("SNOWFLAKE_DB", "ORCHESTRAI")
         cur = sf.cursor()
-        cur.execute("USE DATABASE {}".format(db))
-        cur.execute("CREATE SCHEMA IF NOT EXISTS {}".format(schema))
+        cur.execute(f"USE DATABASE {db}")
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
 
         # 1) COPY the batch into a fresh stage table (write_pandas does PUT + COPY INTO).
-        cur.execute("DROP TABLE IF EXISTS {}.{}".format(schema, stage))
+        cur.execute(f"DROP TABLE IF EXISTS {schema}.{stage}")
         write_pandas(sf, df, stage, schema=schema, database=db,
                      auto_create_table=True, overwrite=True)
 
         # 2) Ensure the target exists with the same structure (first run / older tables).
-        cur.execute("CREATE TABLE IF NOT EXISTS {s}.{t} LIKE {s}.{st}".format(s=schema, t=tbl, st=stage))
-        cur.execute('ALTER TABLE {s}.{t} ADD COLUMN IF NOT EXISTS "_ROW_HASH" VARCHAR'.format(s=schema, t=tbl))
+        cur.execute(f"CREATE TABLE IF NOT EXISTS {schema}.{tbl} LIKE {schema}.{stage}")
+        cur.execute(f'ALTER TABLE {schema}.{tbl} ADD COLUMN IF NOT EXISTS "_ROW_HASH" VARCHAR')
 
         # 3) Count genuine inserts / updates BEFORE merging (for true "loaded" metric).
         cur.execute(
-            'SELECT COUNT(*) FROM {s}.{st} src LEFT JOIN {s}.{t} tgt '
-            'ON tgt."{pk}" = src."{pk}" WHERE tgt."{pk}" IS NULL'.format(s=schema, st=stage, t=tbl, pk=pk))
+            f'SELECT COUNT(*) FROM {schema}.{stage} src LEFT JOIN {schema}.{tbl} tgt '
+            f'ON tgt."{pk}" = src."{pk}" WHERE tgt."{pk}" IS NULL')
         _r = cur.fetchone(); inserts = int(_r[0]) if _r else 0
         cur.execute(
-            'SELECT COUNT(*) FROM {s}.{st} src JOIN {s}.{t} tgt ON tgt."{pk}" = src."{pk}" '
-            'WHERE COALESCE(tgt."_ROW_HASH", \'\') <> src."_ROW_HASH"'.format(s=schema, st=stage, t=tbl, pk=pk))
+            f'SELECT COUNT(*) FROM {schema}.{stage} src JOIN {schema}.{tbl} tgt ON tgt."{pk}" = src."{pk}" '
+            'WHERE COALESCE(tgt."_ROW_HASH", \'\') <> src."_ROW_HASH"')
         _r = cur.fetchone(); updates = int(_r[0]) if _r else 0
 
         # 4) MERGE — update ONLY when the content hash differs; insert new keys.
         cols = list(df.columns)
         update_cols = [c for c in cols if c != pk]
-        upd = ", ".join('tgt."{c}" = src."{c}"'.format(c=c) for c in update_cols) \
-              or 'tgt."{pk}" = src."{pk}"'.format(pk=pk)
+        upd = ", ".join(f'tgt."{c}" = src."{c}"' for c in update_cols) \
+              or f'tgt."{pk}" = src."{pk}"'
         merge_sql = (
             'MERGE INTO {s}.{t} tgt USING {s}.{st} src ON tgt."{pk}" = src."{pk}" '
             'WHEN MATCHED AND COALESCE(tgt."_ROW_HASH", \'\') <> src."_ROW_HASH" THEN UPDATE SET {upd} '
             'WHEN NOT MATCHED THEN INSERT ({icols}) VALUES ({ivals})'
         ).format(
             s=schema, t=tbl, st=stage, pk=pk, upd=upd,
-            icols=", ".join('"{}"'.format(c) for c in cols),
-            ivals=", ".join('src."{}"'.format(c) for c in cols),
+            icols=", ".join(f'"{c}"' for c in cols),
+            ivals=", ".join(f'src."{c}"' for c in cols),
         )
         cur.execute(merge_sql)
-        cur.execute("DROP TABLE IF EXISTS {}.{}".format(schema, stage))
+        cur.execute(f"DROP TABLE IF EXISTS {schema}.{stage}")
 
         ingested = len(df)
         self.last_merge_stats = {
@@ -378,7 +375,7 @@ class SnowflakeLoader:
         return inserts + updates
 
     @staticmethod
-    def add_surrogate_key(df: pd.DataFrame, key_cols: Optional[list] = None,
+    def add_surrogate_key(df: pd.DataFrame, key_cols: list | None = None,
                           key_name: str = "_PK") -> pd.DataFrame:
         """
         Add a deterministic MD5 surrogate key from the given business columns

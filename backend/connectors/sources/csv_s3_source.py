@@ -1,8 +1,6 @@
 """CSV / S3 Source Connector — local file, S3, or HTTP URL; CSV/Excel/Parquet; returns DataFrame."""
-from typing import Dict, List, Optional
 
 import pandas as pd
-
 
 DEMO_CONFIG = {
     "source_type": "url",
@@ -13,7 +11,7 @@ DEMO_CONFIG = {
 
 
 class CSVSource:
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
 
     def _detect_format(self, path: str) -> str:
@@ -25,7 +23,7 @@ class CSVSource:
                    "parquet": "parquet", "pq": "parquet"}
         return mapping.get(ext, "csv")
 
-    def _read_df(self, path_or_bytes, fmt: str, row_limit: Optional[int] = None) -> pd.DataFrame:
+    def _read_df(self, path_or_bytes, fmt: str, row_limit: int | None = None) -> pd.DataFrame:
         if fmt == "parquet":
             df = pd.read_parquet(path_or_bytes)
         elif fmt == "excel":
@@ -37,7 +35,9 @@ class CSVSource:
         return df
 
     def _load_from_s3(self) -> pd.DataFrame:
-        import boto3, io
+        import io
+
+        import boto3
         s3 = boto3.client(
             "s3",
             aws_access_key_id=self.config.get("aws_access_key_id"),
@@ -52,7 +52,9 @@ class CSVSource:
         return self._read_df(io.BytesIO(data), fmt, self.config.get("row_limit"))
 
     def _load_from_url(self) -> pd.DataFrame:
-        import requests, io
+        import io
+
+        import requests
         url = self.config["url"]
         fmt = self._detect_format(url)
         row_limit = self.config.get("row_limit")
@@ -66,7 +68,7 @@ class CSVSource:
         fmt = self._detect_format(path)
         return self._read_df(path, fmt, self.config.get("row_limit"))
 
-    def test_connection(self) -> Dict:
+    def test_connection(self) -> dict:
         import time
         t0 = time.time()
         try:
@@ -88,7 +90,7 @@ class CSVSource:
         else:
             return self._load_from_local()
 
-    def get_schema(self) -> List[Dict]:
+    def get_schema(self) -> list[dict]:
         try:
             df = self.extract()
             if df.empty:

@@ -1,10 +1,9 @@
 """REST API Source Connector — pagination, auth, nested JSON, returns pandas DataFrame."""
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 import requests
-
 
 DEMO_CONFIG = {
     "url": "https://api.open-meteo.com/v1/forecast",
@@ -23,7 +22,7 @@ DEMO_CONFIG = {
 
 
 class RestAPISource:
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
         self.session = requests.Session()
         self._setup_auth()
@@ -39,7 +38,7 @@ class RestAPISource:
             header_name = self.config.get("api_key_header", "X-API-Key")
             self.session.headers[header_name] = self.config.get("api_key_value", "")
 
-    def _make_request(self, extra_params: Optional[Dict] = None, url: Optional[str] = None) -> Any:
+    def _make_request(self, extra_params: dict | None = None, url: str | None = None) -> Any:
         target = url or self.config["url"]
         method = self.config.get("method", "GET").upper()
         params = dict(self.config.get("query_params") or {})
@@ -62,7 +61,7 @@ class RestAPISource:
                 node = node.get(part, [])
         return node
 
-    def _to_rows(self, node: Any) -> List[Dict]:
+    def _to_rows(self, node: Any) -> list[dict]:
         if isinstance(node, list):
             return [r if isinstance(r, dict) else {"value": r} for r in node]
         if isinstance(node, dict):
@@ -73,7 +72,7 @@ class RestAPISource:
             return [node]
         return []
 
-    def test_connection(self) -> Dict:
+    def test_connection(self) -> dict:
         t0 = time.time()
         try:
             resp = self._make_request()
@@ -90,7 +89,7 @@ class RestAPISource:
     def extract(self) -> pd.DataFrame:
         pagination_type = self.config.get("pagination_type", "none")
         data_root = self.config.get("data_root", "")
-        all_rows: List[Dict] = []
+        all_rows: list[dict] = []
 
         if pagination_type == "none":
             resp = self._make_request()
@@ -138,7 +137,7 @@ class RestAPISource:
 
         return pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
 
-    def get_schema(self) -> List[Dict]:
+    def get_schema(self) -> list[dict]:
         try:
             df = self.extract()
             if df.empty:

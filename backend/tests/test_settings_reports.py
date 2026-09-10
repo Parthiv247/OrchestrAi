@@ -1,5 +1,4 @@
 """Settings and Reports endpoint smoke tests."""
-import pytest
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────

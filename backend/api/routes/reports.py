@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -84,9 +84,9 @@ class CreateReportRequest(BaseModel):
     report_type: str = "pipeline_digest"
     description: str = ""
     schedule_cron: str = "0 8 * * *"
-    recipients: List[str]
+    recipients: list[str]
     format: str = "html"
-    filters: Optional[Dict[str, Any]] = None
+    filters: dict[str, Any] | None = None
     enabled: bool = True
 
 

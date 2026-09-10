@@ -3,11 +3,10 @@ DuckDB local warehouse — serves as the destination for pipeline ETL.
 Acts as a lightweight Snowflake replacement for dev/demo environments.
 The warehouse file lives at: <project_root>/data/warehouse.duckdb
 """
-import duckdb
-import os
 import logging
 from pathlib import Path
-from typing import List, Dict
+
+import duckdb
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -107,7 +106,7 @@ class DuckDBWarehouse:
             )
         """)
 
-    def insert_batch(self, table: str, records: List[Dict]) -> int:
+    def insert_batch(self, table: str, records: list[dict]) -> int:
         """
         Full-replace insert — used for metrics/logging tables where dedup by id is fine.
         For business data tables (nyc_taxi_trips, ecommerce_orders), prefer upsert_batch.
@@ -123,7 +122,7 @@ class DuckDBWarehouse:
             logger.error("DuckDB insert_batch failed: %s", e)
             return 0
 
-    def upsert_batch(self, table: str, records: List[Dict], unique_key: str) -> int:
+    def upsert_batch(self, table: str, records: list[dict], unique_key: str) -> int:
         """
         Incremental upsert — only inserts new rows or updates existing ones by unique_key.
 
@@ -205,7 +204,7 @@ class DuckDBWarehouse:
         except Exception:
             return 0
 
-    def get_recent_loads(self, pipeline_name: str, limit: int = 10) -> List[Dict]:
+    def get_recent_loads(self, pipeline_name: str, limit: int = 10) -> list[dict]:
         """Get recent load history for a pipeline."""
         try:
             rows = self._conn.execute("""

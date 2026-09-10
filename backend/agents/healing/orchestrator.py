@@ -15,17 +15,16 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Optional, Literal
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 from ...db.pool import pool_context
-from .state import HealingAgentState
-from .monitoring_agent import MonitoringAgent
+from .deployment_agent import DeploymentAgent
 from .diagnosis_agent import DiagnosisAgent
 from .fix_writer_agent import FixWriterAgent
+from .monitoring_agent import MonitoringAgent
 from .sandbox_agent import SandboxAgent
-from .deployment_agent import DeploymentAgent
+from .state import HealingAgentState
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +244,7 @@ class HealingOrchestrator:
 
     # ── Public entry points ────────────────────────────────────────────────────
 
-    def run(self, pipeline_name, incident_id: Optional[str] = None) -> HealingAgentState:
+    def run(self, pipeline_name, incident_id: str | None = None) -> HealingAgentState:
         """Synchronous entry point — runs the full healing workflow.
 
         pipeline_name can be a string OR a dict with keys:
@@ -270,7 +269,7 @@ class HealingOrchestrator:
             initial["error"] = str(e)
             return initial
 
-    async def arun(self, pipeline_name: str, incident_id: Optional[str] = None) -> HealingAgentState:
+    async def arun(self, pipeline_name: str, incident_id: str | None = None) -> HealingAgentState:
         """Async entry point."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.run, pipeline_name, incident_id)
@@ -287,7 +286,7 @@ class HealingOrchestrator:
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
-    def _make_initial_state(self, pipeline_name: str, incident_id: Optional[str]) -> HealingAgentState:
+    def _make_initial_state(self, pipeline_name: str, incident_id: str | None) -> HealingAgentState:
         return HealingAgentState(
             pipeline_name=pipeline_name,
             run_id=None,
@@ -347,9 +346,8 @@ class HealingOrchestrator:
         if not incident_id:
             return
         try:
-            with pool_context() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
+            with pool_context() as conn, conn.cursor() as cur:
+                cur.execute("""
                         UPDATE incidents SET
                             fix_code = %s, fix_language = %s,
                             sandbox_results = %s::jsonb,
@@ -357,15 +355,15 @@ class HealingOrchestrator:
                             confidence_score = %s
                         WHERE id = %s
                     """, (
-                        state.get("fix_code", ""),
-                        state.get("fix_language", "python"),
-                        _json.dumps(state.get("sandbox_results") or {}),
-                        state.get("tests_passed") or 0,
-                        state.get("tests_failed") or 0,
-                        state.get("confidence_score") or 0.0,
-                        incident_id,
-                    ))
-                    conn.commit()
+                    state.get("fix_code", ""),
+                    state.get("fix_language", "python"),
+                    _json.dumps(state.get("sandbox_results") or {}),
+                    state.get("tests_passed") or 0,
+                    state.get("tests_failed") or 0,
+                    state.get("confidence_score") or 0.0,
+                    incident_id,
+                ))
+                conn.commit()
         except Exception as e:
             logger.warning("_update_incident_sandbox failed: %s", e)
 

@@ -8,8 +8,8 @@ MTTR and strategy effectiveness can be computed and charted over time.
 import hashlib
 import logging
 import os
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -44,8 +44,8 @@ class OutcomeTracker:
         outcome: str,
         fix_code: str = "",
         confidence_score: float = 0.0,
-        detection_at: Optional[datetime] = None,
-        approved_by: Optional[str] = None,
+        detection_at: datetime | None = None,
+        approved_by: str | None = None,
     ) -> bool:
         """
         Record a healing outcome (called on approve/reject).
@@ -107,7 +107,7 @@ class OutcomeTracker:
 
     # ── Read / analytics path ──────────────────────────────────────────────────
 
-    def get_strategy_success_rates(self) -> Dict[str, Any]:
+    def get_strategy_success_rates(self) -> dict[str, Any]:
         """
         Returns per-anomaly-type strategy success rates.
 
@@ -147,7 +147,7 @@ class OutcomeTracker:
             return {}
 
         # Aggregate: per anomaly_type, pick the best strategy
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for row in rows:
             at = row["anomaly_type"]
             total = row["total"] or 1
@@ -175,7 +175,7 @@ class OutcomeTracker:
 
         return result
 
-    def get_mttr_trend(self, days: int = 30) -> List[Dict]:
+    def get_mttr_trend(self, days: int = 30) -> list[dict]:
         """
         Returns daily average MTTR for the last N days.
 
@@ -216,7 +216,7 @@ class OutcomeTracker:
             for row in rows
         ]
 
-    def get_learning_stats(self) -> Dict[str, Any]:
+    def get_learning_stats(self) -> dict[str, Any]:
         """
         Full stats for the /api/learning/stats endpoint.
 
@@ -261,7 +261,7 @@ class OutcomeTracker:
         total_outcomes = 0
         avg_mttr = 0.0
         success_rate = 0.0
-        top_anomaly_types: List = []
+        top_anomaly_types: list = []
         weekly_improvement_pct = 0.0
 
         try:

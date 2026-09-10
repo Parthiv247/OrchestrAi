@@ -1,10 +1,9 @@
 """Settings API — team members, API tokens, notification config, audit log."""
-import uuid
-import secrets
 import hashlib
 import json
+import secrets
+import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -108,32 +107,32 @@ class InviteMemberRequest(BaseModel):
 
 
 class UpdateMemberRequest(BaseModel):
-    role: Optional[str] = None
-    status: Optional[str] = None
+    role: str | None = None
+    status: str | None = None
 
 
 class CreateTokenRequest(BaseModel):
     name: str
     scopes: str = "read"  # read | write | admin
-    expires_days: Optional[int] = None
+    expires_days: int | None = None
 
 
 class NotificationConfigRequest(BaseModel):
-    slack_webhook_url: Optional[str] = None
-    email_from: Optional[str] = None
-    email_smtp_host: Optional[str] = None
-    email_smtp_port: Optional[int] = None
-    email_smtp_user: Optional[str] = None
-    email_smtp_pass: Optional[str] = None
-    pagerduty_key: Optional[str] = None
-    alert_rules: Optional[List[Dict]] = None
+    slack_webhook_url: str | None = None
+    email_from: str | None = None
+    email_smtp_host: str | None = None
+    email_smtp_port: int | None = None
+    email_smtp_user: str | None = None
+    email_smtp_pass: str | None = None
+    pagerduty_key: str | None = None
+    alert_rules: list[dict] | None = None
 
 
 class AlertRuleRequest(BaseModel):
     name: str
     condition: str      # pipeline_failure | anomaly | cost_threshold | null_spike
     channel: str        # slack | email | pagerduty
-    threshold: Optional[float] = None
+    threshold: float | None = None
     enabled: bool = True
 
 
@@ -367,7 +366,9 @@ def update_notification_config(body: NotificationConfigRequest):
 
 @router.post("/notifications/test-slack")
 def test_slack_webhook():
-    import httpx, os
+    import os
+
+    import httpx
     url = os.getenv("SLACK_WEBHOOK_URL", "")
     if not url:
         # Try DB

@@ -1,6 +1,5 @@
 """PostgreSQL Source Connector — full load and incremental sync, returns pandas DataFrame."""
 import logging
-from typing import Dict, List, Optional
 
 import pandas as pd
 import psycopg2
@@ -22,7 +21,7 @@ BATCH_SIZE = 1000
 
 
 class PostgreSQLSource:
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
         self._conn = None
 
@@ -44,7 +43,7 @@ class PostgreSQLSource:
             self._conn.close()
             self._conn = None
 
-    def test_connection(self) -> Dict:
+    def test_connection(self) -> dict:
         import time
         t0 = time.time()
         try:
@@ -69,7 +68,7 @@ class PostgreSQLSource:
         finally:
             self._close()
 
-    def get_schema(self) -> Dict[str, List[Dict]]:
+    def get_schema(self) -> dict[str, list[dict]]:
         schema_name = self.config.get("schema", "public")
         result = {}
         try:
@@ -98,8 +97,7 @@ class PostgreSQLSource:
         try:
             conn = self._get_conn()
             with conn.cursor() as cur:
-                cur.execute('SELECT COUNT(*) FROM "{schema}"."{table}"'.format(
-                    schema=schema_name, table=table))
+                cur.execute(f'SELECT COUNT(*) FROM "{schema_name}"."{table}"')
                 _r = cur.fetchone()
                 return _r[0] if _r else 0
         except Exception:
@@ -110,8 +108,8 @@ class PostgreSQLSource:
     def extract(
         self,
         table: str,
-        cursor_field: Optional[str] = None,
-        last_value: Optional[str] = None,
+        cursor_field: str | None = None,
+        last_value: str | None = None,
     ) -> pd.DataFrame:
         """Extract table as DataFrame. Incremental if cursor_field+last_value given."""
         schema_name = self.config.get("schema", "public")
@@ -119,20 +117,18 @@ class PostgreSQLSource:
         try:
             conn = self._get_conn()
             with conn.cursor(
-                name="pg_src_{}".format(table),
+                name=f"pg_src_{table}",
                 cursor_factory=psycopg2.extras.RealDictCursor
             ) as cur:
                 cur.itersize = BATCH_SIZE
                 if cursor_field and last_value is not None:
                     cur.execute(
-                        'SELECT * FROM "{schema}"."{table}" '
-                        'WHERE "{cf}" > %s ORDER BY "{cf}" ASC'.format(
-                            schema=schema_name, table=table, cf=cursor_field),
+                        f'SELECT * FROM "{schema_name}"."{table}" '
+                        f'WHERE "{cursor_field}" > %s ORDER BY "{cursor_field}" ASC',
                         (last_value,),
                     )
                 else:
-                    cur.execute('SELECT * FROM "{schema}"."{table}"'.format(
-                        schema=schema_name, table=table))
+                    cur.execute(f'SELECT * FROM "{schema_name}"."{table}"')
                 batch = cur.fetchmany(BATCH_SIZE)
                 while batch:
                     chunks.append(pd.DataFrame([dict(r) for r in batch]))
@@ -143,7 +139,7 @@ class PostgreSQLSource:
             self._close()
         return pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
 
-    def list_tables(self) -> List[str]:
+    def list_tables(self) -> list[str]:
         schema_name = self.config.get("schema", "public")
         try:
             conn = self._get_conn()

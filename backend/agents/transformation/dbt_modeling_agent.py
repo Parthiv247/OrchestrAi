@@ -12,13 +12,13 @@ import subprocess
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict, Optional, List, Dict, Any
+from typing import Any, TypedDict
 
 import httpx
 import psycopg2
 import psycopg2.extras
 import psycopg2.sql
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 logger = logging.getLogger(__name__)
 
@@ -43,21 +43,21 @@ RAW_TABLES = ["nyc_taxi_trips", "ecommerce_orders"]
 # ── Shared state ───────────────────────────────────────────────────────────────
 
 class DbtAgentState(TypedDict):
-    raw_tables: List[str]
-    schema_info: Optional[Dict[str, Any]]        # table → {columns, row_count, sample}
-    star_schema_proposal: Optional[Dict[str, Any]]  # {fact_tables, dimension_tables, reasoning}
-    staging_models: Optional[Dict[str, str]]     # model_name → SQL
-    mart_models: Optional[Dict[str, str]]        # model_name → SQL
-    written_files: Optional[List[str]]
-    dbt_run_output: Optional[str]
-    dbt_test_output: Optional[str]
+    raw_tables: list[str]
+    schema_info: dict[str, Any] | None        # table → {columns, row_count, sample}
+    star_schema_proposal: dict[str, Any] | None  # {fact_tables, dimension_tables, reasoning}
+    staging_models: dict[str, str] | None     # model_name → SQL
+    mart_models: dict[str, str] | None        # model_name → SQL
+    written_files: list[str] | None
+    dbt_run_output: str | None
+    dbt_test_output: str | None
     models_succeeded: int
     models_failed: int
     tests_passed: int
     tests_failed: int
-    mart_tables_created: Optional[List[str]]
-    run_id: Optional[str]
-    error: Optional[str]
+    mart_tables_created: list[str] | None
+    run_id: str | None
+    error: str | None
     started_at: str
 
 
@@ -189,8 +189,8 @@ Return ONLY valid JSON (no markdown fences):
     def _node_staging(self, state: DbtAgentState) -> DbtAgentState:
         """Generate staging model SQL for each raw table (using existing or Groq-generated)."""
         schema_info = state.get("schema_info") or {}
-        staging_models: Dict[str, str] = {}
-        written: List[str] = []
+        staging_models: dict[str, str] = {}
+        written: list[str] = []
 
         for table_name, info in schema_info.items():
             model_name = f"stg_{table_name}"
@@ -226,7 +226,7 @@ Return ONLY valid JSON (no markdown fences):
     def _node_marts(self, state: DbtAgentState) -> DbtAgentState:
         """Generate mart model SQL for each fact/dimension in the star schema proposal."""
         proposal = state.get("star_schema_proposal") or {}
-        mart_models: Dict[str, str] = {}
+        mart_models: dict[str, str] = {}
         written = list(state.get("written_files") or [])
 
         all_mart_tables = (
@@ -310,7 +310,7 @@ No markdown, no explanation."""
 
         # Persist run to DB
         run_id = self._save_dbt_run(
-            models_generated=len((state.get("staging_models") or {})) + len((state.get("mart_models") or {})),
+            models_generated=len(state.get("staging_models") or {}) + len(state.get("mart_models") or {}),
             models_succeeded=succeeded,
             models_failed=failed,
             tests_passed=tests_pass,
@@ -341,7 +341,7 @@ No markdown, no explanation."""
 
     # ── Public entry points ────────────────────────────────────────────────────
 
-    def run(self, raw_tables: Optional[List[str]] = None) -> DbtAgentState:
+    def run(self, raw_tables: list[str] | None = None) -> DbtAgentState:
         initial = DbtAgentState(
             raw_tables=raw_tables or RAW_TABLES,
             schema_info=None,
@@ -446,7 +446,7 @@ Return ONLY SQL, no markdown."""
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
 
-    def _parse_json(self, text: str) -> Dict[str, Any]:
+    def _parse_json(self, text: str) -> dict[str, Any]:
         # Try to extract JSON from response
         text = re.sub(r"```json\n?|```\n?", "", text).strip()
         match = re.search(r"\{.*\}", text, re.DOTALL)

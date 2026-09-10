@@ -1,10 +1,11 @@
 """PipelineEngine — orchestrates extract → transform → load for a single pipeline run."""
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from .base import IngestRecord, PipelineStats
-from .registry import get_source, get_destination
+from .registry import get_destination, get_source
 
 
 class PipelineEngine:
@@ -16,7 +17,7 @@ class PipelineEngine:
         stats = engine.run()
     """
 
-    def __init__(self, config: Dict, on_progress: Optional[Callable[[PipelineStats], None]] = None):
+    def __init__(self, config: dict, on_progress: Callable[[PipelineStats], None] | None = None):
         self.config = config
         self.on_progress = on_progress
         self._stats = PipelineStats()
@@ -46,7 +47,7 @@ class PipelineEngine:
                     schema_cols,
                 )
 
-            batch: List[IngestRecord] = []
+            batch: list[IngestRecord] = []
             batch_size = self.config.get("batch_size", 500)
             dest_table = self.config.get("destination_table", "records")
 

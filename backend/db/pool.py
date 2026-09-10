@@ -17,14 +17,15 @@ Usage:
         put_conn(conn)
 """
 from __future__ import annotations
+
 import logging
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
 
-from dotenv import load_dotenv
 import psycopg2
+from dotenv import load_dotenv
 from psycopg2.pool import ThreadedConnectionPool
 
 # Load backend/.env (override=True so host.docker.internal wins over Docker service names)

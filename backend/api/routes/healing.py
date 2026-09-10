@@ -14,12 +14,12 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Optional, List
 
 import psycopg2
 import psycopg2.extras
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from pydantic import BaseModel
+
 from ...core.limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -49,32 +49,32 @@ class TriggerResponse(BaseModel):
 class IncidentSummary(BaseModel):
     id: str
     pipeline_name: str
-    anomaly_type: Optional[str]
-    root_cause: Optional[str]
-    root_cause_confidence: Optional[float]
-    confidence_score: Optional[float]
-    tests_passed: Optional[int]
-    tests_failed: Optional[int]
-    approval_status: Optional[str]
-    deployed: Optional[bool]
-    error: Optional[str]
-    created_at: Optional[str]
-    resolved_at: Optional[str]
+    anomaly_type: str | None
+    root_cause: str | None
+    root_cause_confidence: float | None
+    confidence_score: float | None
+    tests_passed: int | None
+    tests_failed: int | None
+    approval_status: str | None
+    deployed: bool | None
+    error: str | None
+    created_at: str | None
+    resolved_at: str | None
 
 
 class IncidentDetail(IncidentSummary):
-    run_id: Optional[str]
-    anomaly_details: Optional[dict]
-    lineage_graph: Optional[dict]
-    fix_code: Optional[str]
-    fix_language: Optional[str]
-    sandbox_results: Optional[dict]
-    deployment_result: Optional[dict]
-    approval_email: Optional[str]
+    run_id: str | None
+    anomaly_details: dict | None
+    lineage_graph: dict | None
+    fix_code: str | None
+    fix_language: str | None
+    sandbox_results: dict | None
+    deployment_result: dict | None
+    approval_email: str | None
 
 
 class RejectRequest(BaseModel):
-    reason: Optional[str] = "No reason provided"
+    reason: str | None = "No reason provided"
 
 
 class HealingStatus(BaseModel):
@@ -129,7 +129,7 @@ async def trigger_healing(request: Request, pipeline_name: str, background_tasks
 async def list_incidents(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    status: Optional[str] = Query(None, description="Filter by approval_status: pending|approved|rejected"),
+    status: str | None = Query(None, description="Filter by approval_status: pending|approved|rejected"),
 ):
     """List incidents ordered by most recent first with pagination."""
     try:
@@ -302,7 +302,7 @@ async def approve_incident(
 async def reject_incident(
     incident_id: str,
     token: str = Query(..., description="One-time rejection token from email"),
-    body: Optional[RejectRequest] = None,
+    body: RejectRequest | None = None,
     background_tasks: BackgroundTasks = None,
 ):
     """Reject fix with optional reason."""
@@ -434,7 +434,7 @@ async def _run_deployment_async(incident_id: str):
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
 
-def _get_incident_row(incident_id: str) -> Optional[dict]:
+def _get_incident_row(incident_id: str) -> dict | None:
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:

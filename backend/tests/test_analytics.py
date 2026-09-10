@@ -1,5 +1,4 @@
 """Analytics + AI Analyst endpoint smoke tests."""
-import pytest
 
 
 def test_run_nl_query_missing_body(client):

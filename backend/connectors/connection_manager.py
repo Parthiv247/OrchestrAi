@@ -2,12 +2,11 @@
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Optional
 
 import psycopg2
 from cryptography.fernet import Fernet
 
-_fernet: Optional[Fernet] = None
+_fernet: Fernet | None = None
 
 
 def _get_fernet() -> Fernet:
@@ -43,8 +42,8 @@ class ConnectionManager:
         self,
         name: str,
         db_type: str,
-        config: Dict,
-        tenant_id: Optional[str] = None,
+        config: dict,
+        tenant_id: str | None = None,
     ) -> str:
         import json
         conn_id = str(uuid.uuid4())
@@ -72,7 +71,7 @@ class ConnectionManager:
             db.close()
         return conn_id
 
-    def get_connection(self, name: str) -> Optional[Dict]:
+    def get_connection(self, name: str) -> dict | None:
         import json
         db = _get_db_conn()
         try:
@@ -89,7 +88,7 @@ class ConnectionManager:
         fernet = _get_fernet()
         return json.loads(fernet.decrypt(row[0].encode()).decode())
 
-    def test_connection(self, db_type: str, config: Dict) -> Dict:
+    def test_connection(self, db_type: str, config: dict) -> dict:
         import time
         t0 = time.time()
         try:

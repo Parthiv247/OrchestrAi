@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -42,20 +42,20 @@ DANGEROUS = {"DROP", "DELETE", "TRUNCATE", "ALTER", "UPDATE", "INSERT", "GRANT",
 
 class NLQueryRequest(BaseModel):
     question: str
-    connection_id: Optional[str] = None
-    session_id: Optional[str] = None
+    connection_id: str | None = None
+    session_id: str | None = None
 
 
 class ExecuteSQLRequest(BaseModel):
     sql: str
-    connection_id: Optional[str] = None
+    connection_id: str | None = None
     # user_role is ignored — role is always enforced server-side as 'viewer'
     # Field kept for backwards compat so existing callers don't break
     user_role: str = "viewer"
 
 
 class InsightsRequest(BaseModel):
-    connection_id: Optional[str] = None
+    connection_id: str | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -65,22 +65,22 @@ class FeedbackRequest(BaseModel):
 class QueryResponse(BaseModel):
     sql: str
     optimized_sql: str
-    optimization_suggestions: List[str]
+    optimization_suggestions: list[str]
     explanation: str
-    rows: List[List]
-    columns: List[str]
+    rows: list[list]
+    columns: list[str]
     row_count: int
     execution_time_ms: int
-    chart_config: Dict[str, Any]
+    chart_config: dict[str, Any]
     tokens_used: int
-    error: Optional[str]
+    error: str | None
 
 
 class TableInfo(BaseModel):
     schema_name: str
     table_name: str
     full_name: str
-    row_count: Optional[int]
+    row_count: int | None
     column_count: int
 
 
@@ -91,7 +91,6 @@ class TableInfo(BaseModel):
 async def nl_query(request: Request, req: NLQueryRequest):
     """Convert natural language question to SQL, optimize, execute, chart."""
     from ...agents.analytics.query_agent import QueryAgent
-    from ...agents.learning.learning_agent import LearningAgent
 
     history = _load_session_history(req.session_id)
 
@@ -187,7 +186,7 @@ async def execute_sql(req: ExecuteSQLRequest):
 
 # ── Schema endpoints ───────────────────────────────────────────────────────────
 
-@router.get("/api/analyst/tables", response_model=List[TableInfo])
+@router.get("/api/analyst/tables", response_model=list[TableInfo])
 async def list_tables():
     """List all tables in raw, staging, and marts schemas with row counts."""
     try:
@@ -269,7 +268,7 @@ async def get_table_schema(table_name: str, schema: str = Query("marts")):
 
 @router.get("/api/insights")
 async def get_insights(
-    connection_id: Optional[str] = Query(None),
+    connection_id: str | None = Query(None),
     background_tasks: BackgroundTasks = None,
 ):
     """Return 10 insights. Serves from cache if <1 hour old, else regenerates."""
@@ -396,7 +395,7 @@ async def learning_stats():
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _load_session_history(session_id: Optional[str]) -> list:
+def _load_session_history(session_id: str | None) -> list:
     if not session_id:
         return []
     try:
@@ -412,7 +411,7 @@ def _load_session_history(session_id: Optional[str]) -> list:
     return []
 
 
-def _update_session(session_id: Optional[str], question: str, sql: str):
+def _update_session(session_id: str | None, question: str, sql: str):
     if not session_id:
         return
     import uuid
@@ -453,7 +452,7 @@ def _store_query_async(question: str, result):
         logger.warning("store_query_async failed: %s", e)
 
 
-def _regenerate_insights(connection_id: Optional[str]):
+def _regenerate_insights(connection_id: str | None):
     try:
         from ...agents.analytics.insights_agent import InsightsAgent
         InsightsAgent().generate(connection_id)
@@ -461,7 +460,7 @@ def _regenerate_insights(connection_id: Optional[str]):
         logger.error("_regenerate_insights failed: %s", e)
 
 
-def _quick_count(schema: str, table: str) -> Optional[int]:
+def _quick_count(schema: str, table: str) -> int | None:
     try:
         conn = psycopg2.connect(**DB_CONFIG, connect_timeout=5)
         with conn.cursor() as cur:
@@ -491,7 +490,6 @@ async def sla_metrics():
       - last 7 days daily error_rate (%) for the error rate timeline
     """
     try:
-        import random
         conn = psycopg2.connect(**DB_CONFIG)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Per-pipeline latency percentiles + SLA breach count

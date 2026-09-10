@@ -1,12 +1,10 @@
 """Connector registry — maps connector_id strings to connector classes."""
-from typing import Dict
 
-from .sources.rest_api_source import RestAPISource
-from .sources.postgresql_source import PostgreSQLSource
-from .sources.google_sheets_source import GoogleSheetsSource
-from .sources.csv_s3_source import CSVSource
 from .destination.snowflake_loader import SnowflakeLoader
-
+from .sources.csv_s3_source import CSVSource
+from .sources.google_sheets_source import GoogleSheetsSource
+from .sources.postgresql_source import PostgreSQLSource
+from .sources.rest_api_source import RestAPISource
 
 SOURCE_REGISTRY = {
     "rest_api": RestAPISource,
@@ -16,17 +14,17 @@ SOURCE_REGISTRY = {
 }
 
 
-def get_source(connector_id: str, config: Dict):
+def get_source(connector_id: str, config: dict):
     cls = SOURCE_REGISTRY.get(connector_id)
     if cls is None:
-        raise ValueError("Unknown source connector: {!r}".format(connector_id))
+        raise ValueError(f"Unknown source connector: {connector_id!r}")
     return cls(config)
 
 
-def get_destination(connector_id: str, config: Dict):
+def get_destination(connector_id: str, config: dict):
     if connector_id in ("snowflake", "postgresql", "snowflake_dest"):
         return SnowflakeLoader(config)
-    raise ValueError("Unknown destination connector: {!r}".format(connector_id))
+    raise ValueError(f"Unknown destination connector: {connector_id!r}")
 
 
 def list_sources():

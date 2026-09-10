@@ -10,8 +10,9 @@ Strategy:
 import os
 import sys
 import types
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 # ── Make backend importable without installing the package ─────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -69,13 +70,14 @@ _stub_module("dbt.cli.main", dbtRunner=MagicMock(), dbtRunnerResult=MagicMock())
 
 # Stub sqlglot
 import unittest.mock as _um
+
 _glot = _stub_module("sqlglot")
 _glot.parse_one = _um.MagicMock(return_value=MagicMock())
 _glot.errors = _stub_module("sqlglot.errors", SqlglotError=Exception)
 
 # Stub slowapi (may not be installed in test env)
 try:
-    import slowapi  # noqa
+    import slowapi
 except ImportError:
     # RateLimitExceeded must be its OWN exception class — using Exception would register
     # the MagicMock handler for ALL exceptions and break Starlette error handling in tests.
@@ -157,9 +159,10 @@ def mock_db(monkeypatch):
 @pytest.fixture(scope="session")
 def client():
     """Return a TestClient for the FastAPI app with dev mode header."""
-    from fastapi.testclient import TestClient
     # async_engine is already stubbed via _stub_module("sqlalchemy.ext.asyncio", ...)
     # and backend.db.session imports from that stub, so no extra patch needed.
+    from fastapi.testclient import TestClient
+
     from backend.main import app
     # raise_server_exceptions=False: Pydantic/LLM errors from mocked deps return 500 instead of re-raising
     with TestClient(app, headers={"X-Dev-Mode": "true"}, raise_server_exceptions=False) as c:

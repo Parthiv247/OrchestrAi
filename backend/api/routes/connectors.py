@@ -1,18 +1,23 @@
 """Connector management endpoints — catalog, saved connections, test, upload."""
+import json
 import os
 import re
-import uuid
-import json
 import shutil
-import psycopg2
-from typing import Any, Dict, List, Optional
+import uuid
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request
-from ...core.limiter import limiter
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
-from ...connectors.registry import get_source, get_destination, list_sources, list_destinations
-from ...core.encryption import encrypt, decrypt, mask_dict
+
+from ...connectors.registry import (
+    get_destination,
+    get_source,
+    list_destinations,
+    list_sources,
+)
 from ...core.db_utils import get_sync_conn
+from ...core.encryption import decrypt, encrypt, mask_dict
+from ...core.limiter import limiter
 
 router = APIRouter()
 
@@ -29,13 +34,13 @@ async def upload_connector_file(file: UploadFile = File(...)):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     # Sanitize the filename and prefix a short uuid to avoid collisions.
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "upload.csv"))
-    stored = "{}_{}".format(uuid.uuid4().hex[:8], safe)
+    stored = f"{uuid.uuid4().hex[:8]}_{safe}"
     dest = os.path.join(UPLOAD_DIR, stored)
     try:
         with open(dest, "wb") as out:
             shutil.copyfileobj(file.file, out)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Upload failed: {}".format(e))
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
     finally:
         await file.close()
     size = os.path.getsize(dest)
@@ -310,7 +315,7 @@ CONNECTOR_LOGO_OVERRIDES = {
 @router.get("/connectors/catalog")
 def get_catalog():
     """Return the full connector catalog grouped by category."""
-    grouped: Dict[str, List] = {}
+    grouped: dict[str, list] = {}
     for c in CONNECTOR_CATALOG:
         cat = c["category"]
         if cat not in grouped:
@@ -344,14 +349,14 @@ def get_catalog_entry(connector_id: str):
 class SaveConnectionRequest(BaseModel):
     connector_id: str
     name: str                         # user-given label, e.g. "prod-postgres"
-    credentials: Dict[str, Any]       # encrypted server-side
-    notes: Optional[str] = ""
+    credentials: dict[str, Any]       # encrypted server-side
+    notes: str | None = ""
 
 
 class UpdateConnectionRequest(BaseModel):
-    name: Optional[str] = None
-    credentials: Optional[Dict[str, Any]] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    credentials: dict[str, Any] | None = None
+    notes: str | None = None
 
 
 def _ensure_connector_configs_table(conn):
@@ -374,7 +379,7 @@ def _ensure_connector_configs_table(conn):
     cur.close()
 
 
-def _row_to_dict(row) -> Dict:
+def _row_to_dict(row) -> dict:
     return {
         "id": row[0],
         "connector_id": row[1],
@@ -549,7 +554,7 @@ def test_saved_connection(request: Request, connection_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _test_connector(connector_id: str, creds: Dict) -> tuple:
+def _test_connector(connector_id: str, creds: dict) -> tuple:
     """Try a lightweight connection test for each known connector type."""
     try:
         if connector_id == "postgresql":
@@ -646,7 +651,7 @@ def _test_connector(connector_id: str, creds: Dict) -> tuple:
 class TestConnectionRequest(BaseModel):
     connector_type: str          # "source" | "destination"
     connector_id: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 # ── Connector catalogue ────────────────────────────────────────────────────────

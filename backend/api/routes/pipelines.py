@@ -1,12 +1,11 @@
 """Pipeline and connection FastAPI endpoints — Phase 1 + ETL execution engine."""
-import asyncio
 import json
 import logging
 import os
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -54,7 +53,7 @@ def _pg():
     )
 
 
-def _fetch(sql: str, params=None) -> List[Dict]:
+def _fetch(sql: str, params=None) -> list[dict]:
     conn = _pg()
     try:
         with conn.cursor() as cur:
@@ -79,29 +78,29 @@ def _execute(sql: str, params=None):
 
 class TestConnectionRequest(BaseModel):
     connector_type: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class SaveConnectionRequest(BaseModel):
     name: str
     db_type: str
-    config: Dict[str, Any]
-    tenant_id: Optional[str] = None
+    config: dict[str, Any]
+    tenant_id: str | None = None
 
 
 class CreatePipelineRequest(BaseModel):
     name: str
     source_connection_id: str
-    source_table: Optional[str] = None
-    source_query: Optional[str] = None
+    source_table: str | None = None
+    source_query: str | None = None
     dest_connection_id: str
     dest_table: str
     sync_mode: str = "full_refresh"   # full_refresh | incremental
-    cursor_field: Optional[str] = None
-    field_mappings: Optional[List[Dict]] = None   # [{src, dst, type}]
-    filters: Optional[List[Dict]] = None           # [{field, op, value}]
-    schedule_cron: Optional[str] = None
-    description: Optional[str] = ""
+    cursor_field: str | None = None
+    field_mappings: list[dict] | None = None   # [{src, dst, type}]
+    filters: list[dict] | None = None           # [{field, op, value}]
+    schedule_cron: str | None = None
+    description: str | None = ""
 
 
 # ── GET /api/pipelines ─────────────────────────────────────────────────────────
@@ -277,7 +276,7 @@ def get_pipeline_runs(pipeline_id: str):
     return {"dag_id": dag_id, "runs": runs}
 
 
-def _extract_source_df(connector_id: str, creds: Optional[Dict], source_config: Dict):
+def _extract_source_df(connector_id: str, creds: dict | None, source_config: dict):
     """Extract a DataFrame from the real source connector (no fabrication)."""
     from ...connectors.registry import get_source
     cid = (connector_id or "").lower()
@@ -314,10 +313,10 @@ def _extract_source_df(connector_id: str, creds: Optional[Dict], source_config: 
     if cid == "rest_api":
         return get_source("rest_api", dict(creds)).extract()
 
-    raise ValueError("Live trigger not supported for source connector '{}' yet".format(connector_id))
+    raise ValueError(f"Live trigger not supported for source connector '{connector_id}' yet")
 
 
-def _run_pipeline_real(pipeline: Dict) -> Dict:
+def _run_pipeline_real(pipeline: dict) -> dict:
     """
     Actually run the pipeline: extract from the real source connector, then
     idempotently load to Snowflake via stage -> MERGE on the pipeline's key
@@ -370,7 +369,7 @@ def _run_pipeline_real(pipeline: Dict) -> Dict:
     try:
         sf = loader._get_snowflake()
         c = sf.cursor()
-        c.execute('SELECT COUNT(*) FROM {}.{}'.format(schema, table))
+        c.execute(f'SELECT COUNT(*) FROM {schema}.{table}')
         _r = c.fetchone()
         dest_total = _r[0] if _r else None
         c.close()
@@ -396,7 +395,7 @@ def trigger_pipeline(pipeline_id: str):
     # In a real Airflow deployment, trigger the DAG.
     try:
         resp = http_requests.post(
-            "{}/api/v1/dags/{}/dagRuns".format(AIRFLOW_BASE, dag_id),
+            f"{AIRFLOW_BASE}/api/v1/dags/{dag_id}/dagRuns",
             json={"conf": {}},
             auth=(AIRFLOW_USER, AIRFLOW_PASS),
             timeout=5,
@@ -408,7 +407,7 @@ def trigger_pipeline(pipeline_id: str):
 
     # Airflow not reachable -> run the REAL load inline and record TRUE counts.
     t0 = time.time()
-    run_id = "manual_{}".format(uuid.uuid4().hex[:8])
+    run_id = f"manual_{uuid.uuid4().hex[:8]}"
     try:
         res = _run_pipeline_real(_get_pipeline_config(pipeline_id) or pipeline)
         dur = max(1, round(time.time() - t0))
@@ -454,7 +453,7 @@ def trigger_pipeline(pipeline_id: str):
         # Broadcast failure over WebSocket
         _broadcast_pipeline_event(pipeline_id, "failed", {"error": str(e), "run_id": run_id, "name": name})
         logger.error("trigger_pipeline real run failed: %s", e)
-        raise HTTPException(status_code=400, detail="Pipeline run failed: {}".format(e))
+        raise HTTPException(status_code=400, detail=f"Pipeline run failed: {e}")
 
 
 # ── Connection endpoints ───────────────────────────────────────────────────────
@@ -486,7 +485,9 @@ def test_connector(body: TestConnectionRequest):
             return {"success": True, "latency_ms": round((time.time()-t0)*1000),
                     "details": {"status_code": resp.status_code}}
         elif ctype == "google_sheets":
-            from backend.connectors.sources.google_sheets_source import GoogleSheetsSource
+            from backend.connectors.sources.google_sheets_source import (
+                GoogleSheetsSource,
+            )
             src = GoogleSheetsSource(config)
             result = src.test_connection()
             return result
@@ -499,6 +500,7 @@ def test_connector(body: TestConnectionRequest):
 @router.post("/api/connections")
 def save_connection(body: SaveConnectionRequest):
     import json
+
     from cryptography.fernet import Fernet
     key = os.environ.get("ENCRYPTION_KEY", "")
     if not key:
@@ -598,7 +600,7 @@ def _ensure_etl_tables(conn):
     conn.commit()
 
 
-def _get_pipeline_config(pipeline_id: str) -> Optional[Dict]:
+def _get_pipeline_config(pipeline_id: str) -> dict | None:
     try:
         conn = _etl_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -621,7 +623,7 @@ def _get_pipeline_config(pipeline_id: str) -> Optional[Dict]:
         return None
 
 
-def _get_connector_creds(conn_id: str) -> Optional[Dict]:
+def _get_connector_creds(conn_id: str) -> dict | None:
     """Decrypt saved connector credentials."""
     try:
         conn = _etl_conn()
@@ -650,7 +652,6 @@ def _run_etl_job(job_id: str, pipeline_id: str, sync_mode: str, cursor_value: st
     - incremental: copy only rows where cursor_field > last cursor_value
     - append: insert new rows without deduplication
     """
-    import random
     t0 = time.time()
     conn = _etl_conn()
     _ensure_etl_tables(conn)
@@ -750,7 +751,8 @@ def _run_etl_job(job_id: str, pipeline_id: str, sync_mode: str, cursor_value: st
 
             # Write to destination
             from ...connectors.destination.snowflake_loader import (
-                has_snowflake_creds, load_to_snowflake,
+                has_snowflake_creds,
+                load_to_snowflake,
             )
             dest_is_snowflake = dest_type == "snowflake" and has_snowflake_creds(dst_creds)
 
@@ -896,7 +898,7 @@ def list_pipeline_jobs(pipeline_id: str, limit: int = 20):
 
 
 @router.get("/api/etl/queue")
-def get_etl_queue(status: Optional[str] = None, limit: int = 50):
+def get_etl_queue(status: str | None = None, limit: int = 50):
     """View the ETL job queue across all pipelines."""
     try:
         conn = _etl_conn()

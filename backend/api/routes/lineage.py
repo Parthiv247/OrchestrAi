@@ -10,7 +10,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -26,7 +25,7 @@ MANIFEST_PATHS = [
 ]
 
 
-def _load_manifest() -> Optional[dict]:
+def _load_manifest() -> dict | None:
     for p in MANIFEST_PATHS:
         try:
             if p.exists():
@@ -60,7 +59,7 @@ def _node_layer(name: str, resource_type: str, schema: str = "") -> str:
 
 # ── Infer column-level lineage from SQL (simple regex) ────────────────────────
 
-def _infer_column_lineage(raw_code: str, source_columns: List[str], dest_columns: List[str]) -> List[dict]:
+def _infer_column_lineage(raw_code: str, source_columns: list[str], dest_columns: list[str]) -> list[dict]:
     """
     Very simple heuristic: look for SELECT <col> or <alias> AS <col> patterns.
     Returns list of {source_col, dest_col} mappings.
