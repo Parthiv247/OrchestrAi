@@ -106,7 +106,8 @@ def _validate_startup_config() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_startup_config()
-    # DB startup — hard 5-second timeout so a hung TCP connection doesn't block startup
+
+    # ── Fast DB init (must complete before accepting requests) ────────────────
     async def _init_db() -> None:
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -133,105 +134,79 @@ async def lifespan(app: FastAPI):
                     pass
 
     try:
-        await asyncio.wait_for(_init_db(), timeout=15.0)
+        await asyncio.wait_for(_init_db(), timeout=10.0)
     except (asyncio.TimeoutError, Exception) as e:
         import logging
         logging.getLogger("orchestrai").warning(
             "DB not available at startup (will retry per-request): %s", e
         )
-    # ML models — train if pkl files are missing (e.g. fresh Railway deploy)
-    async def _ensure_ml_models() -> None:
-        import subprocess
-        import sys
-        from pathlib import Path
-        _ml_dir = Path(__file__).parent.parent / "ml"
-        _model_path = _ml_dir / "isolation_forest.pkl"
-        if not _model_path.exists():
-            _train_script = _ml_dir / "train_models.py"
-            if _train_script.exists():
-                logging.getLogger("orchestrai").info(
-                    "ML models not found — running train_models.py (first-time setup)"
-                )
-                try:
-                    result = subprocess.run(
-                        [sys.executable, str(_train_script)],
-                        capture_output=True, text=True, timeout=120,
-                    )
-                    if result.returncode == 0:
-                        logging.getLogger("orchestrai").info("ML models trained successfully.")
-                    else:
-                        logging.getLogger("orchestrai").warning(
-                            "train_models.py exited with code %d: %s",
-                            result.returncode, result.stderr[-500:]
-                        )
-                except Exception as e:
-                    logging.getLogger("orchestrai").warning("ML training failed: %s", e)
 
-    try:
-        await asyncio.wait_for(_ensure_ml_models(), timeout=180.0)
-    except asyncio.TimeoutError:
-        logging.getLogger("orchestrai").warning("ML training timed out — continuing without models")
-    except Exception as e:
-        logging.getLogger("orchestrai").warning("ML startup check failed: %s", e)
-
-    # Groq API key validation — fail loudly so the problem is obvious in logs
-    async def _validate_groq_key() -> None:
-        key = os.getenv("GROQ_API_KEY", "")
-        if not key or key.startswith("gsk_") is False:
-            logging.getLogger("orchestrai").error(
-                "GROQ_API_KEY is missing or looks invalid. "
-                "NL-to-SQL and cost optimizer will use fallback mode. "
-                "Get a key at https://console.groq.com"
-            )
-            return
-        try:
-            import httpx
-            r = httpx.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
-                timeout=10,
-            )
-            if r.status_code == 200:
-                logging.getLogger("orchestrai").info("Groq API key validated OK.")
-            elif r.status_code == 401:
-                logging.getLogger("orchestrai").error(
-                    "GROQ_API_KEY is EXPIRED or INVALID (HTTP 401). "
-                    "NL-to-SQL will not work. Renew at https://console.groq.com"
-                )
-            else:
-                logging.getLogger("orchestrai").warning("Groq API key check returned HTTP %d.", r.status_code)
-        except Exception as e:
-            logging.getLogger("orchestrai").warning("Could not validate Groq key (network): %s", e)
-
-    try:
-        await asyncio.wait_for(_validate_groq_key(), timeout=15.0)
-    except Exception:
-        pass
-
-    # Seed demo data on first boot (only if tables are empty)
-    async def _seed_demo_data() -> None:
-        try:
-            from .core.seed_demo import seed_if_empty
-            await asyncio.get_event_loop().run_in_executor(None, seed_if_empty)
-        except Exception as e:
-            logging.getLogger("orchestrai").warning("Demo data seeding failed: %s", e)
-
-    try:
-        await asyncio.wait_for(_seed_demo_data(), timeout=60.0)
-    except (asyncio.TimeoutError, Exception) as e:
-        logging.getLogger("orchestrai").warning("Demo seeding skipped: %s", e)
-
-    # Start the per-pipeline ingestion scheduler (auto-runs pipelines on their interval)
+    # ── Start scheduler ───────────────────────────────────────────────────────
     try:
         from .scheduler import start as _start_scheduler
         _start_scheduler()
     except Exception as e:
-        import logging
         logging.getLogger("orchestrai").warning("Scheduler failed to start: %s", e)
-    # Capture the running loop so background threads can broadcast WS events
+
     ws_manager.set_loop(asyncio.get_event_loop())
-    yield
+
+    # ── Background tasks (non-blocking — run after healthcheck passes) ────────
+    async def _background_init() -> None:
+        _log = logging.getLogger("orchestrai")
+
+        # 1. ML models — train only if pkl files are missing
+        try:
+            import subprocess, sys
+            from pathlib import Path
+            _ml_dir = Path(__file__).parent.parent / "ml"
+            if not (_ml_dir / "isolation_forest.pkl").exists():
+                _train = _ml_dir / "train_models.py"
+                if _train.exists():
+                    _log.info("ML models missing — training in background...")
+                    result = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: subprocess.run(
+                            [sys.executable, str(_train)],
+                            capture_output=True, text=True, timeout=180,
+                        )
+                    )
+                    if result.returncode == 0:
+                        _log.info("ML models trained OK.")
+                    else:
+                        _log.warning("train_models.py failed: %s", result.stderr[-300:])
+        except Exception as e:
+            _log.warning("ML background init failed: %s", e)
+
+        # 2. Groq key validation
+        try:
+            import httpx
+            key = os.getenv("GROQ_API_KEY", "")
+            if key and key.startswith("gsk_"):
+                r = httpx.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                    json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                    timeout=10,
+                )
+                if r.status_code == 200:
+                    _log.info("Groq API key validated OK.")
+                elif r.status_code == 401:
+                    _log.error("GROQ_API_KEY is INVALID (HTTP 401). Renew at https://console.groq.com")
+        except Exception as e:
+            _log.warning("Groq key validation failed: %s", e)
+
+        # 3. Demo data seeding
+        try:
+            from .core.seed_demo import seed_if_empty
+            await asyncio.get_event_loop().run_in_executor(None, seed_if_empty)
+            _log.info("Demo data seeding complete.")
+        except Exception as e:
+            _log.warning("Demo seeding failed: %s", e)
+
+    _bg_task = asyncio.create_task(_background_init())
+
+    yield  # ← server accepts requests immediately; background init runs concurrently
+    _bg_task.cancel()
     try:
         from .scheduler import stop as _stop_scheduler
         _stop_scheduler()
