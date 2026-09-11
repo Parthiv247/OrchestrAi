@@ -120,6 +120,10 @@ def _loop():
 
 
 def start():
+    import os
+    if os.getenv("SCHEDULER_DISABLED", "").lower() in ("1", "true", "yes"):
+        logger.info("Pipeline ingestion scheduler DISABLED (SCHEDULER_DISABLED=true)")
+        return
     global _thread
     if _thread and _thread.is_alive():
         return
