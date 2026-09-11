@@ -96,8 +96,7 @@ def _validate_startup_config() -> None:
         errors.append("JWT_SECRET_KEY is still the insecure default — set a strong secret")
     if not os.getenv("ENCRYPTION_KEY"):
         errors.append("ENCRYPTION_KEY is not set — connector credentials cannot be encrypted")
-    if not os.getenv("CORS_ORIGINS"):
-        errors.append("CORS_ORIGINS is not set — CORS will be restricted to localhost:3000 in production")
+    # CORS_ORIGINS is optional — falls back to localhost:3000 if unset
     if errors:
         msg = "OrchestrAI startup validation failed:\n" + "\n".join(f"  • {e}" for e in errors)
         raise RuntimeError(msg)
